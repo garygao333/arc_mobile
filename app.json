@@ -12,6 +12,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "extra": {
+      "API_KEY":"WDe9peT9TxgVDpoZ5CkT",
+      "WORKSPACE":"project1-lwhhu",
+      "WORKFLOW_ID":"detect-and-classify-3-2",
+      "SERVERLESS_URL":"https://serverless.roboflow.com"
+    },    
     "ios": {
       "supportsTablet": true
     },

@@ -1,20 +1,63 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import HomePage from './screens/HomePage';
+import ProjectPage from './screens/ProjectPage';
+import StudyAreaPage from './screens/StudyAreaPage';
+import StratUnitPage from './screens/StratUnitPage';
+import MaterialContainerPage from './screens/MaterialContainerPage';
+import MaterialEditPage from './screens/MaterialEditPage';
+import MaterialGroupPage from './screens/MaterialGroupPage';
+
+export type RootStackParamList = {
+  Home: undefined;
+  Project: { projectId: string };
+  StudyArea: { projectId: string; studyAreaId: string };
+  StratUnit: { projectId: string; studyAreaId: string; suId: string };
+  MaterialContainer: {
+    projectId: string;
+    studyAreaId: string;
+    suId: string;
+    containerId: string;
+  };
+  MaterialGroup: {
+    projectId: string;
+    studyAreaId: string;
+    suId: string;
+    containerId: string;
+    groupId: string;
+  };
+  MaterialEdit: {
+    projectId: string;
+    studyAreaId: string;
+    suId: string;
+    containerId: string;
+    groupId: string;
+    initialSherds: Array<{
+      sherd_id: string;
+      weight: number;
+      type_prediction: string;
+      qualification_prediction: string;
+    }>;
+    annotatedImage?: string;
+    fromImage?: boolean;
+  };
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomePage} />
+        <Stack.Screen name="Project" component={ProjectPage} />
+        <Stack.Screen name="StudyArea" component={StudyAreaPage} />
+        <Stack.Screen name="StratUnit" component={StratUnitPage} />
+        <Stack.Screen name="MaterialContainer" component={MaterialContainerPage} />
+        <Stack.Screen name="MaterialGroup" component={MaterialGroupPage} />
+        <Stack.Screen name="MaterialEdit" component={MaterialEditPage} /> 
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

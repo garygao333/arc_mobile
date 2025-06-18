@@ -8,9 +8,11 @@ import StratUnitPage from './screens/StratUnitPage';
 import MaterialContainerPage from './screens/MaterialContainerPage';
 import MaterialEditPage from './screens/MaterialEditPage';
 import MaterialGroupPage from './screens/MaterialGroupPage';
+import UniversalDatabaseViewer from './components/UniversalDatabaseViewer';
 
 export type RootStackParamList = {
   Home: undefined;
+  UniversalDatabase: undefined;
   Project: { projectId: string };
   StudyArea: { projectId: string; studyAreaId: string };
   StratUnit: { projectId: string; studyAreaId: string; suId: string };
@@ -51,6 +53,7 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Home">
         <Stack.Screen name="Home" component={HomePage} />
+        <Stack.Screen    name="UniversalDatabase" component={UniversalDatabaseViewer} options={{ title: "Universal Sherd Database" }} />
         <Stack.Screen name="Project" component={ProjectPage} />
         <Stack.Screen name="StudyArea" component={StudyAreaPage} />
         <Stack.Screen name="StratUnit" component={StratUnitPage} />

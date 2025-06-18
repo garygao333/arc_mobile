@@ -1,310 +1,384 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TextInput, Button, StyleSheet, Alert, Image, ScrollView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  StyleSheet, 
+  Alert, 
+  Image, 
+  ScrollView, 
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator
+} from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../App';
 import { db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
-
-const diagnosticTypes = ['rim', 'base', 'body', 'foot'];
-const qualificationTypes = ['its', 'african', 'black_gloss', 'sardinian', 'thin_wall'];
-
-type Props = NativeStackScreenProps<RootStackParamList, 'MaterialEdit'>;
+import { UniversalSherdDatabase, type UniversalSherdData } from '../utils/universalDatabase';
 
 type Sherd = {
   sherd_id: string;
-  weight: number;
   type_prediction: string;
   qualification_prediction: string;
+  weight?: number;
+  confidence?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  detection_id?: string;
 };
 
-type GroupedSherd = {
-  diagnostic: string;
-  qualification: string;
-  count: number;
-  weight: number;
-};
+type Props = NativeStackScreenProps<RootStackParamList, 'MaterialEdit'>;
 
-export default function MaterialEditPage({ route, navigation }: Props) {
-  const [sherds, setSherds] = useState<Sherd[]>(route.params.initialSherds);
+const diagnosticTypes = ['rim', 'base', 'body', 'foot'] as const;
+const qualificationTypes = ['its', 'african', 'black_gloss', 'sardinian', 'thin_wall'] as const;
+
+const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
+  const { 
+    projectId, 
+    studyAreaId, 
+    suId, 
+    containerId, 
+    groupId, 
+    initialSherds, 
+    annotatedImage, 
+    fromImage 
+  } = route.params;
+  
+  const [sherds, setSherds] = useState<Sherd[]>(initialSherds);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const updateSherd = (index: number, field: keyof Sherd, value: string | number) => {
-    const updated = [...sherds];
-    updated[index] = { ...updated[index], [field]: value };
-    setSherds(updated);
-  };
-
-  const groupSherds = (sherds: Sherd[]): GroupedSherd[] => {
-    const grouped: { [key: string]: { count: number; total_weight: number } } = {};
-
-    sherds.forEach(sherd => {
-      const key = `${sherd.type_prediction}|${sherd.qualification_prediction}`;
-      
-      if (!grouped[key]) {
-        grouped[key] = { count: 0, total_weight: 0.0 };
-      }
-      
-      grouped[key].count += 1;
-      grouped[key].total_weight += sherd.weight || 0.0;
-    });
-
-    const groupedSummary: GroupedSherd[] = [];
-    
-    Object.entries(grouped).forEach(([key, stats]) => {
-      const [type_label, qual_label] = key.split('|');
-      groupedSummary.push({
-        diagnostic: type_label,
-        qualification: qual_label,
-        count: stats.count,
-        weight: Math.round(stats.total_weight * 100) / 100
-      });
-    });
-
-    return groupedSummary;
-  };
-
-  const saveGroupedSherdsToFirebase = async (groupedSherds: GroupedSherd[]) => {
-    try {
-      const promises = groupedSherds.map(group => 
-        addDoc(collection(
-          db,
-          'projects', route.params.projectId,
-          'studyAreas', route.params.studyAreaId,
-          'stratUnits', route.params.suId,
-          'containers', route.params.containerId,
-          'groups', route.params.groupId,
-          'objects'
-        ), group)
-      );
-
-      await Promise.all(promises);
-      console.log('Successfully saved all grouped sherds to Firebase');
-    } catch (error) {
-      console.error('Error saving grouped sherds to Firebase:', error);
-      throw error;
-    }
+  const updateSherd = (index: number, field: keyof Sherd, value: any) => {
+    const updatedSherds = [...sherds];
+    updatedSherds[index] = { ...updatedSherds[index], [field]: value };
+    setSherds(updatedSherds);
   };
 
   const handleConfirm = async () => {
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-      
-      const invalidSherds = sherds.filter(sherd => 
-        !sherd.type_prediction || 
-        !sherd.qualification_prediction || 
-        sherd.weight <= 0
+      // Save to Firestore
+      await addDoc(
+        collection(
+          db,
+          'projects', projectId,
+          'studyAreas', studyAreaId,
+          'stratUnits', suId,
+          'containers', containerId,
+          'groups', groupId,
+          'sherds'
+        ),
+        {
+          sherds,
+          timestamp: new Date(),
+        }
       );
 
-      if (invalidSherds.length > 0) {
-        Alert.alert(
-          "Invalid Data", 
-          "Please ensure all sherds have valid type, qualification, and weight values."
-        );
-        setIsProcessing(false);
-        return;
+      // Save each sherd to the universal database
+      await Promise.all(sherds.map(sherd => {
+        const sherdData: Omit<UniversalSherdData, 'createdAt'> = {
+          sherdId: sherd.sherd_id,
+          projectId,
+          studyAreaId,
+          stratUnitId: suId,
+          containerId,
+          objectGroupId: groupId,
+          diagnosticType: sherd.type_prediction,
+          qualificationType: sherd.qualification_prediction,
+          weight: sherd.weight || 0,
+          analysisConfidence: sherd.confidence,
+          boundingBox: {
+            x: sherd.x || 0,
+            y: sherd.y || 0,
+            width: sherd.width || 0,
+            height: sherd.height || 0
+          },
+          originalImageUrl: annotatedImage ? `data:image/jpeg;base64,${annotatedImage}` : undefined
+        };
+        return UniversalSherdDatabase.addSherd(sherdData);
+      }));
+
+      // Navigate back
+      if (fromImage) {
+        navigation.navigate('MaterialContainer', {
+          projectId,
+          studyAreaId,
+          suId,
+          containerId,
+        });
+      } else {
+        navigation.goBack();
       }
-
-      const groupedSherds = groupSherds(sherds);
-      
-      console.log('Grouped sherds:', groupedSherds);
-
-      await saveGroupedSherdsToFirebase(groupedSherds);
-
-      Alert.alert(
-        "Success", 
-        `Successfully processed ${sherds.length} sherds into ${groupedSherds.length} groups`,
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              navigation.navigate('MaterialGroup', {
-                projectId: route.params.projectId,
-                studyAreaId: route.params.studyAreaId,
-                suId: route.params.suId,
-                containerId: route.params.containerId,
-                groupId: route.params.groupId
-              });
-            }
-          }
-        ]
-      );
-
     } catch (error) {
-      console.error('Error processing sherds:', error);
-      Alert.alert("Error", "Failed to process and save sherds. Please try again.");
+      console.error('Error saving sherds:', error);
+      Alert.alert('Error', 'Failed to save sherds. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const previewGroupedData = () => {
-    const grouped = groupSherds(sherds);
-    const preview = grouped.map(g => 
-      `${g.diagnostic}/${g.qualification}: ${g.count} pieces, ${g.weight}g`
-    ).join('\n');
-    
-    Alert.alert("Preview Grouped Data", preview);
-  };
-
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>Edit Sherds ({sherds.length} items)</Text>
-      
-      {route.params.annotatedImage && (
-        <View style={styles.imageContainer}>
-          <Text style={styles.imageTitle}>Detected Sherds</Text>
-          <Image 
-            source={{ uri: `data:image/jpeg;base64,${route.params.annotatedImage}` }}
-            style={styles.annotatedImage}
-            resizeMode="contain"
-          />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerLogo}>ARC</Text>
         </View>
-      )}
-      
-      <View style={styles.buttonRow}>
-        <Button title="Preview Groups" onPress={previewGroupedData} color="#007AFF" />
-      </View>
 
-      <FlatList
-        data={sherds}
-        keyExtractor={(item) => item.sherd_id}
-        scrollEnabled={false}
-        renderItem={({ item, index }) => (
-          <View style={styles.sherdBox}>
-            <Text style={styles.sherdId}>{item.sherd_id}</Text>
-            
-            <Text style={styles.label}>Weight (grams):</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="decimal-pad"
-              value={item.weight.toString()}
-              onChangeText={(val) => updateSherd(index, 'weight', parseFloat(val) || 0)}
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          showsVerticalScrollIndicator={false}
+        >
+        {/* Image */}
+        {annotatedImage && (
+          <View style={styles.imageContainer}>
+            <Text style={styles.imageTitle}>Detected Sherds</Text>
+            <Image 
+              source={{ uri: `data:image/jpeg;base64,${annotatedImage}` }}
+              style={styles.annotatedImage}
+              resizeMode="contain"
             />
-
-            <Text style={styles.label}>Diagnostic Type:</Text>
-            <Picker
-              style={styles.picker}
-              selectedValue={item.type_prediction}
-              onValueChange={(val) => updateSherd(index, 'type_prediction', val)}
-            >
-              {diagnosticTypes.map((opt) => (
-                <Picker.Item label={opt.charAt(0).toUpperCase() + opt.slice(1)} value={opt} key={opt} />
-              ))}
-            </Picker>
-
-            <Text style={styles.label}>Qualification:</Text>
-            <Picker
-              style={styles.picker}
-              selectedValue={item.qualification_prediction}
-              onValueChange={(val) => updateSherd(index, 'qualification_prediction', val)}
-            >
-              {qualificationTypes.map((opt) => (
-                <Picker.Item 
-                  label={opt.replace('_', ' ').toUpperCase()} 
-                  value={opt} 
-                  key={opt} 
-                />
-              ))}
-            </Picker>
           </View>
         )}
-      />
 
-      <View style={styles.bottomButtons}>
-        <Button 
-          title={isProcessing ? "Processing..." : "Confirm & Save Groups"} 
-          onPress={handleConfirm}
-          disabled={isProcessing}
-          color="#28a745"
-        />
-        <Button 
-          title="Cancel" 
-          onPress={() => {
-            if (route.params.fromImage) {
-              navigation.navigate('MaterialContainer', {
-                projectId: route.params.projectId,
-                studyAreaId: route.params.studyAreaId,
-                suId: route.params.suId,
-                containerId: route.params.containerId
-              });
-            } else {
-              navigation.goBack();
-            }
-          }} 
-          color="#dc3545"
-        />
+        {route.params.annotatedImage && (
+          <View style={styles.imageContainer}>
+            <Image 
+              source={{ uri: route.params.annotatedImage }} 
+              style={styles.previewImage} 
+              resizeMode="contain"
+            />
+          </View>
+        )}
+        
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {sherds.length} Sherd{sherds.length !== 1 ? 's' : ''} Detected
+          </Text>
+          
+          {sherds.map((sherd, index) => (
+            <View key={sherd.sherd_id} style={styles.card}>
+              <Text style={styles.cardTitle}>Sherd {index + 1}</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Type</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={sherd.type_prediction}
+                    onValueChange={(value) => updateSherd(index, 'type_prediction', value)}
+                    style={styles.picker}
+                    dropdownIconColor="#6C757D"
+                  >
+                    {diagnosticTypes.map(type => (
+                      <Picker.Item 
+                        key={type} 
+                        label={type.charAt(0).toUpperCase() + type.slice(1)} 
+                        value={type} 
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Qualification</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={sherd.qualification_prediction}
+                    onValueChange={(value) => updateSherd(index, 'qualification_prediction', value)}
+                    style={styles.picker}
+                    dropdownIconColor="#6C757D"
+                  >
+                    {qualificationTypes.map(type => (
+                      <Picker.Item 
+                        key={type} 
+                        label={type.split('_').map(word => 
+                          word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' ')} 
+                        value={type} 
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Weight (grams)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={sherd.weight?.toString() || ''}
+                  onChangeText={(value) => updateSherd(index, 'weight', parseFloat(value) || 0)}
+                  keyboardType="numeric"
+                  placeholder="0.0"
+                  placeholderTextColor="#ADB5BD"
+                />
+              </View>
+              
+              {sherd.confidence && (
+                <View style={styles.confidenceBadge}>
+                  <Ionicons name="ribbon-outline" size={16} color="#2D0C57" />
+                  <Text style={styles.confidenceText}>
+                    {(sherd.confidence * 100).toFixed(1)}% Confidence
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+        
+        <View style={styles.buttonGroup}>
+          
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton, isProcessing && styles.disabledButton]}
+            onPress={handleConfirm}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="save-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>Confirm & Save</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+        </ScrollView>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { 
-    padding: 20, 
+  safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5'
+    backgroundColor: '#fff',
   },
-  header: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    marginBottom: 15,
-    textAlign: 'center'
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    margin: 0,
+    padding: 0,
+  },
+  header: {
+    backgroundColor: '#2D0C57',
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerLogo: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    color: '#fff',
   },
   imageContainer: {
-    marginBottom: 20,
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    padding: 15,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
+    padding: 20,
   },
   imageTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
     marginBottom: 10,
-    color: '#333'
   },
   annotatedImage: {
     width: '100%',
-    height: 300,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd'
+    height: 200,
+    resizeMode: 'contain',
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    resizeMode: 'contain',
   },
   buttonRow: {
-    marginBottom: 15,
-    alignItems: 'center'
+    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  sherdBox: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
+  button: {
+    padding: 10,
+    borderRadius: 5,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  secondaryButton: {
+    backgroundColor: '#007AFF',
+  },
+  secondaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  primaryButton: {
+    backgroundColor: '#2D0C57',
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  scrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollViewContent: {
+    padding: 16,
+    paddingBottom: 20,
+  },
+  content: {
+    flex: 1,
+    width: '100%',
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    marginBottom: 10,
+  },
+  card: {
+    padding: 20,
+    marginBottom: 10,
+    backgroundColor: '#fff',
+    borderRadius: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  sherdId: { 
-    fontWeight: 'bold', 
+  cardTitle: {
     fontSize: 16,
     marginBottom: 10,
-    color: '#333'
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
+  inputGroup: {
+    marginBottom: 10,
+  },
+  inputLabel: {
+    fontSize: 16,
     marginBottom: 5,
-    marginTop: 5,
-    color: '#555'
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  picker: {
+    width: '100%',
+    backgroundColor: '#fff',
   },
   input: {
     borderWidth: 1,
@@ -314,14 +388,29 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#fff'
   },
-  picker: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    marginBottom: 10,
-    borderRadius: 5
-  },
   bottomButtons: {
     paddingTop: 20,
     gap: 10
+  },
+  confidenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    padding: 8,
+    borderRadius: 4,
+    marginTop: 8
+  },
+  confidenceText: {
+    marginLeft: 4,
+    fontSize: 12,
+    color: '#666'
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10
   }
 });
+
+export default MaterialEditPage;

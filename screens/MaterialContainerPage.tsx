@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Button, StyleSheet, Modal, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, Button, StyleSheet, Modal, TextInput, Image, Alert, ActivityIndicator, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import Constants from 'expo-constants';
+import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
@@ -7,7 +9,16 @@ import { RootStackParamList } from '../App';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, addDoc, query, orderBy } from 'firebase/firestore';
 
-const SERVER_URL = 'http://192.168.1.104:8000';
+// Dynamically derive backend URL based on the Expo dev server host so it works on any network
+const getServerUrl = () => {
+  // In Expo dev, debuggerHost is something like "10.0.0.3:8081" or "192.168.x.x:19000"
+  // We take the IP part and reuse port 8081 where the inference backend runs.
+  // Fallback to localhost when the property is missing (e.g. production build)
+  const host = (Constants.manifest as any)?.debuggerHost?.split(':')?.shift() || 'localhost';
+  return `http://${host}:8001`;
+};
+
+const SERVER_URL = getServerUrl();
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MaterialContainer'>;
 
@@ -112,10 +123,12 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       Alert.alert("Missing Data", "Please select an image and enter total weight");
       return;
     }
-
+  
     try {
       setImageLoading(true);
-
+      console.log('Starting image analysis...');
+  
+      // Create document reference first
       const docRef = await addDoc(collection(
         db,
         'projects', route.params.projectId,
@@ -124,53 +137,102 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         'containers', route.params.containerId,
         'groups'
       ), {
-        label: functionalType
+        label: functionalType,
+        createdAt: new Date().toISOString()
       });
-
+  
+      console.log('Created document with ID:', docRef.id);
+  
+      // Prepare the image file
+      const uriParts = imageUri.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
       const formData = new FormData();
       formData.append('image', {
         uri: imageUri,
-        type: 'image/jpeg',
-        name: 'upload.jpg'
+        name: `photo.${fileType}`,
+        type: `image/${fileType}`,
       } as any);
-      formData.append('weight', totalWeight.toString());
-
+      
+      // Convert weight to number and ensure it's a valid number
+      const weightValue = parseFloat(totalWeight);
+      if (isNaN(weightValue)) {
+        throw new Error('Invalid weight value');
+      }
+      
+      formData.append('weight', weightValue.toString());
+      
+      // Log form data for debugging
+      console.log('Sending request to server...');
+      console.log('Form data entries:');
+      // @ts-ignore - _parts is not in the TypeScript type definition but exists in React Native
+      const formDataEntries = formData._parts || [];
+      formDataEntries.forEach(([key, value]: [string, any]) => {
+        console.log(`- ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+      });
+      
+      // Add timeout to the fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+  
       const response = await fetch(`${SERVER_URL}/analyze`, {
         method: 'POST',
         body: formData,
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          // Let the browser set the Content-Type with the correct boundary
         },
+        signal: controller.signal
       });
-
+  
+      clearTimeout(timeoutId);
+  
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error(`Server responded with status: ${response.status}\n${errorText}`);
       }
-
+  
       const result = await response.json();
-
+      console.log('Analysis result:', result);
+  
+      // Reset states
       setImageInputModal(false);
       setMethodSelectModal(false);
       setFunctionalTypeModal(false);
       setImageLoading(false);
       setImageUri(null);
       setTotalWeight('');
-
+  
+      // Navigate to the edit screen with results
       navigation.navigate('MaterialEdit', {
         projectId: route.params.projectId,
         studyAreaId: route.params.studyAreaId,
         suId: route.params.suId,
         containerId: route.params.containerId,
         groupId: docRef.id,
-        initialSherds: result.sherds,
-        annotatedImage: result.annotated_image,
+        initialSherds: result.sherds || [],
+        annotatedImage: result.annotated_image || null,
         fromImage: true 
       });
-
-    } catch (err) {
+  
+    } catch (error) {
+      console.error('Error in handleAnalyzeImage:', error);
       setImageLoading(false);
-      Alert.alert("Error", "Error running AI inference");
-      console.error(err);
+      
+      let errorMessage = 'Failed to analyze the image. Please check your connection and try again.';
+      
+      if (error instanceof Error) {
+        errorMessage += `\n\nError: ${error.message}`;
+      } else if (typeof error === 'string') {
+        errorMessage += `\n\nError: ${error}`;
+      } else {
+        errorMessage += '\n\nAn unknown error occurred.';
+      }
+      
+      Alert.alert('Analysis Error', errorMessage);
     }
   };
 
@@ -182,173 +244,507 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
     setTotalWeight('');
   };
 
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Container: {route.params.containerId}</Text>
-      <View style={styles.tableHeader}>
-        <Text style={styles.headerText}>Label</Text>
-        <Text style={styles.headerText}></Text>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerLogo}>ARC</Text>
       </View>
-      <FlatList
-        data={groups}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.tableRow}>
-            <Text style={styles.rowText}>{item.label}</Text>
-            <Button title=">" onPress={() => navigation.navigate('MaterialGroup', {
-              projectId: route.params.projectId,
-              studyAreaId: route.params.studyAreaId,
-              suId: route.params.suId,
-              containerId: route.params.containerId,
-              groupId: item.id
-            })} />
+
+      {/* Container Info */}
+      <View style={styles.projectInfo}>
+        <Text style={styles.projectName}>Container: {route.params.containerId}</Text>
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Material Groups</Text>
+          <TouchableOpacity 
+            onPress={() => setFunctionalTypeModal(true)}
+            style={styles.addButton}
+          >
+            <AntDesign name="plus" size={24} color="black" />
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.divider} />
+        
+        <View style={styles.tableContainer}>
+          {/* Table Header */}
+          <View style={styles.tableHeader}>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.headerCell}>Label</Text>
+            </View>
+            <View style={{ width: 24 }} />
           </View>
-        )}
-      />
+          
+          {/* Table Rows */}
+          <ScrollView style={styles.tableBody}>
+            {groups.length > 0 ? (
+              groups.map((item, index) => (
+                <TouchableOpacity
+                  key={`${item.id}-${index}`}
+                  style={[
+                    styles.tableRow,
+                    { backgroundColor: index % 2 === 0 ? '#FFF' : '#F8F9FA' }
+                  ]}
+                  onPress={() => navigation.navigate('MaterialGroup', {
+                    projectId: route.params.projectId,
+                    studyAreaId: route.params.studyAreaId,
+                    suId: route.params.suId,
+                    containerId: route.params.containerId,
+                    groupId: item.id
+                  })}
+                >
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.cell}>{item.label}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No material groups yet</Text>
+                <TouchableOpacity 
+                  style={styles.addButtonLarge}
+                  onPress={() => setFunctionalTypeModal(true)}
+                >
+                  <Text style={styles.addButtonText}>Add Material Group</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
 
-      <Button title="Add Material Group" onPress={() => setFunctionalTypeModal(true)} />
-
-      <Modal visible={functionalTypeModal} animationType="slide" transparent>
-        <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>Select Functional Type</Text>
-          <Picker selectedValue={functionalType} onValueChange={setFunctionalType}>
-            <Picker.Item label="Fine-ware" value="fine-ware" />
-            <Picker.Item label="Coarse-ware" value="coarse-ware" />
-          </Picker>
-          <Button title="Continue" onPress={() => {
-            setFunctionalTypeModal(false);
-            setMethodSelectModal(true);
-          }} />
-          <Button title="Cancel" color="gray" onPress={resetModals} />
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={functionalTypeModal}
+        onRequestClose={resetModals}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Functional Type</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Material Type</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={functionalType}
+                  onValueChange={setFunctionalType}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Fine Ware" value="fine-ware" />
+                  <Picker.Item label="Coarse Ware" value="coarse-ware" />
+                  <Picker.Item label="Cooking Ware" value="cooking-ware" />
+                  <Picker.Item label="Amphora" value="amphora" />
+                  <Picker.Item label="Lamp" value="lamp" />
+                </Picker>
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.cancelButton]} 
+                onPress={resetModals}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, styles.createButton]} 
+                onPress={() => {
+                  setFunctionalTypeModal(false);
+                  setMethodSelectModal(true);
+                }}
+              >
+                <Text style={styles.createButtonText}>Next</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
       <Modal visible={methodSelectModal} animationType="slide" transparent>
-        <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>Choose Method</Text>
-          <Text style={styles.subtitle}>Selected: {functionalType}</Text>
-          <View style={styles.buttonSpacing}>
-            <Button title="Form Entry" onPress={handleFormMethod} />
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Choose Method</Text>
+            <Text style={styles.modalSubtitle}>Selected: {functionalType}</Text>
+            
+            <TouchableOpacity 
+              style={styles.methodButton}
+              onPress={handleFormMethod}
+            >
+              <Ionicons name="document-text-outline" size={24} color="#2D0C57" />
+              <Text style={styles.methodButtonText}>Form Entry</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.methodButton}
+              onPress={handleImageMethod}
+            >
+              <Ionicons name="camera-outline" size={24} color="#2D0C57" />
+              <Text style={styles.methodButtonText}>Image Analysis</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.cancelButton]} 
+                onPress={() => {
+                  setMethodSelectModal(false);
+                  setFunctionalTypeModal(true);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Back</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.buttonSpacing}>
-            <Button title="Image Analysis" onPress={handleImageMethod} />
-          </View>
-          <Button title="Back" color="gray" onPress={() => {
-            setMethodSelectModal(false);
-            setFunctionalTypeModal(true);
-          }} />
         </View>
       </Modal>
 
       <Modal visible={imageInputModal} animationType="slide" transparent>
-        <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>Image Analysis Input</Text>
-          <Text style={styles.subtitle}>Type: {functionalType}</Text>
-          
-          <TextInput 
-            style={styles.input} 
-            placeholder="Total Weight (grams)" 
-            keyboardType="decimal-pad" 
-            value={totalWeight} 
-            onChangeText={setTotalWeight} 
-          />
-          
-          <View style={styles.buttonSpacing}>
-            <Button title="Upload Image" onPress={pickImage} />
-          </View>
-          <View style={styles.buttonSpacing}>
-            <Button title="Take Photo" onPress={takePhoto} />
-          </View>
-          
-          {imageUri && (
-            <Image 
-              source={{ uri: imageUri }} 
-              style={styles.previewImage} 
-            />
-          )}
-          
-          {imageLoading ? (
-            <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 10 }} />
-          ) : (
-            <View style={styles.buttonSpacing}>
-              <Button 
-                title="Analyze Image" 
-                onPress={handleAnalyzeImage}
-                disabled={!imageUri || !totalWeight}
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Image Analysis Input</Text>
+            <Text style={styles.modalSubtitle}>Type: {functionalType}</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Total Weight (grams)</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="Enter total weight"
+                keyboardType="decimal-pad" 
+                returnKeyType="done"
+                value={totalWeight} 
+                onChangeText={setTotalWeight}
+                onSubmitEditing={() => {
+                  // This will be called when the Done button is pressed
+                  // The keyboard will automatically dismiss due to blurOnSubmit
+                }}
+                blurOnSubmit={true}
               />
             </View>
-          )}
-          
-          <Button title="Back" color="gray" onPress={() => {
-            setImageInputModal(false);
-            setMethodSelectModal(true);
-          }} />
+            
+            <View style={styles.imageContainer}>
+              {imageUri ? (
+                <Image 
+                  source={{ uri: imageUri }} 
+                  style={styles.imagePreview} 
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <Ionicons name="image-outline" size={48} color="#6C757D" />
+                  <Text style={styles.imagePlaceholderText}>No image selected</Text>
+                </View>
+              )}
+              
+              <View style={styles.imageButtons}>
+                <TouchableOpacity 
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={pickImage}
+                >
+                  <Ionicons name="image-outline" size={20} color="#2D0C57" />
+                  <Text style={styles.secondaryButtonText}>Choose from Library</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={takePhoto}
+                >
+                  <Ionicons name="camera-outline" size={20} color="#2D0C57" />
+                  <Text style={styles.secondaryButtonText}>Take Photo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.cancelButton]} 
+                onPress={() => {
+                  setImageInputModal(false);
+                  setMethodSelectModal(true);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Back</Text>
+              </TouchableOpacity>
+              
+              {imageLoading ? (
+                <View style={[styles.button, styles.createButton, styles.disabledButton]}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  style={[
+                    styles.button, 
+                    styles.createButton, 
+                    (!imageUri || !totalWeight) && styles.disabledButton
+                  ]} 
+                  onPress={handleAnalyzeImage}
+                  disabled={!imageUri || !totalWeight}
+                >
+                  <Text style={styles.createButtonText}>Analyze Image</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { padding: 20, flex: 1 },
-  header: { fontSize: 20, marginBottom: 10 },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    backgroundColor: '#2D0C57',
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerLogo: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  projectInfo: {
+    backgroundColor: '#F8F9FA',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  projectName: {
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  addButton: {
+    padding: 8,
+  },
+  addButtonLarge: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#2D0C57',
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E9ECEF',
+    marginBottom: 16,
+  },
+  tableContainer: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
   tableHeader: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    paddingVertical: 8, 
-    borderBottomWidth: 2, 
-    borderColor: '#000', 
-    backgroundColor: '#f2f2f2'
+    flexDirection: 'row',
+    backgroundColor: '#F8F9FA',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
   },
-  headerText: { fontWeight: 'bold', width: '50%' },
-  tableRow: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    paddingVertical: 12, 
-    alignItems: 'center', 
-    borderBottomWidth: 1, 
-    borderColor: '#ccc',
-  },
-  rowText: { width: '50%' },
-  modalView: {
-    margin: 40, 
-    padding: 20, 
-    backgroundColor: 'white', 
-    borderRadius: 10, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.25, 
-    shadowRadius: 4, 
-    elevation: 5
-  },
-  modalTitle: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
-    marginBottom: 15,
-    textAlign: 'center'
-  },
-  subtitle: {
+  headerCell: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-    textAlign: 'center',
-    fontStyle: 'italic'
+    fontWeight: '600',
+    color: '#495057',
+  },
+  tableBody: {
+    flex: 1,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  cell: {
+    fontSize: 14,
+    color: '#212529',
+  },
+  emptyState: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateText: {
+    color: '#6C757D',
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#CED4DA',
+    borderRadius: 6,
+    overflow: 'hidden',
+    padding: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 24,
+    color: '#212529',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6C757D',
+    marginBottom: 24,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#495057',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#CED4DA',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  picker: {
+    backgroundColor: '#F8F9FA',
+  },
+  methodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  methodButtonText: {
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#2D0C57',
+    fontWeight: '500',
+  },
+  imageContainer: {
+    marginBottom: 20,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    marginBottom: 12,
+  },
+  imagePlaceholderText: {
+    marginTop: 8,
+    color: '#6C757D',
+    fontSize: 14,
+  },
+  imageButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
   input: {
-    borderWidth: 1, 
-    borderColor: '#ccc', 
-    padding: 10, 
-    marginBottom: 10, 
-    borderRadius: 5
+    borderWidth: 1,
+    borderColor: '#CED4DA',
+    borderRadius: 6,
+    padding: 12,
+    fontSize: 14,
+    backgroundColor: '#F8F9FA',
   },
-  buttonSpacing: {
-    marginBottom: 10
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 24,
   },
-  previewImage: {
-    width: 200, 
-    height: 200, 
-    marginTop: 10, 
-    marginBottom: 10,
-    alignSelf: 'center',
-    borderRadius: 8
-  }
+  button: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    marginLeft: 12,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F8F9FA',
+  },
+  createButton: {
+    backgroundColor: '#2D0C57',
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 6,
+  },
+  secondaryButtonText: {
+    marginLeft: 8,
+    color: '#2D0C57',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  cancelButtonText: {
+    color: '#6C757D',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  createButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
 });

@@ -13,6 +13,7 @@ type Project = {
   name: string;
   code: string;
   description: string;
+  password?: string;
 };
 
 export default function HomePage({ navigation }: Props) {
@@ -20,7 +21,11 @@ export default function HomePage({ navigation }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [description, setDescription] = useState('');
+  const [passwordPromptVisible, setPasswordPromptVisible] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [enteredPassword, setEnteredPassword] = useState('');
 
   useEffect(() => {
     fetchProjects();
@@ -39,14 +44,38 @@ export default function HomePage({ navigation }: Props) {
 
   const handleAddProject = async () => {
     try {
-      await addDoc(collection(db, 'projects'), { name, code, description });
+      await addDoc(collection(db, 'projects'), { 
+        name, 
+        code, 
+        description,
+        password: password || ''
+      });
       setModalVisible(false);
       setName('');
       setCode('');
+      setPassword('');
       setDescription('');
       fetchProjects();
     } catch (err) {
       console.error('Error adding project:', err);
+    }
+  };
+
+  const handleProjectPress = (project: Project) => {
+    setSelectedProject(project);
+    setEnteredPassword('');
+    setPasswordPromptVisible(true);
+  };
+
+  const handlePasswordSubmit = () => {
+    if (!selectedProject) return;
+    
+    // If project has no password or the entered password matches
+    if (!selectedProject.password || selectedProject.password === enteredPassword) {
+      setPasswordPromptVisible(false);
+      navigation.navigate('Project', { projectId: selectedProject.id });
+    } else {
+      alert('Incorrect password');
     }
   };
 
@@ -73,7 +102,7 @@ export default function HomePage({ navigation }: Props) {
             <TouchableOpacity
               key={`${project.id}-${index}`}
               style={styles.card}
-              onPress={() => navigation.navigate('Project', { projectId: project.id })}
+              onPress={() => handleProjectPress(project)}
             >
               <View style={styles.cardContent}>
                 <Text style={styles.cardTitle}>
@@ -103,6 +132,14 @@ export default function HomePage({ navigation }: Props) {
               value={code} 
               onChangeText={setCode} 
               maxLength={10}
+              autoCapitalize="characters"
+            />
+            <TextInput 
+              placeholder="Password (optional)" 
+              style={styles.input} 
+              value={password} 
+              onChangeText={setPassword}
+              secureTextEntry
             />
             <TextInput 
               placeholder="Description" 
@@ -124,6 +161,41 @@ export default function HomePage({ navigation }: Props) {
                 onPress={handleAddProject}
               >
                 <Text style={styles.createButtonText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Prompt Modal */}
+      <Modal visible={passwordPromptVisible} animationType="slide" transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>Enter Project Password</Text>
+            <Text style={styles.subtitle}>
+              {selectedProject?.name} {selectedProject?.code ? `(${selectedProject.code})` : ''}
+            </Text>
+            <TextInput 
+              placeholder={selectedProject?.password ? 'Enter password' : 'No password (press OK)'}
+              style={styles.input} 
+              value={enteredPassword} 
+              onChangeText={setEnteredPassword}
+              secureTextEntry={!!selectedProject?.password}
+              editable={!!selectedProject?.password}
+              onSubmitEditing={handlePasswordSubmit}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setPasswordPromptVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.createButton]}
+                onPress={handlePasswordSubmit}
+              >
+                <Text style={styles.createButtonText}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -214,13 +286,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderColor: '#ddd',
     padding: 12,
+    borderRadius: 8,
     marginBottom: 16,
     fontSize: 16,
+    backgroundColor: '#fff',
   },
   descriptionInput: {
     height: 100,

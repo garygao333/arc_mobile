@@ -32,7 +32,7 @@ export type RootStackParamList = {
     suId: string;
     containerId: string;
     groupId: string;
-    materialType: 'fine-ware' | 'coarse-ware';
+    materialType: 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp';
   };
   MaterialEdit: {
     projectId: string;
@@ -48,7 +48,7 @@ export type RootStackParamList = {
     }>;
     annotatedImage?: string;
     fromImage?: boolean;
-    materialType: 'fine-ware' | 'coarse-ware';
+    materialType: 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp';
   };
 };
 

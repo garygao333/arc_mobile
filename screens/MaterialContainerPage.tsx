@@ -1,21 +1,61 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Button, StyleSheet, Modal, TextInput, Image, Alert, ActivityIndicator, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  Button, 
+  StyleSheet, 
+  Modal, 
+  TextInput, 
+  Image, 
+  Alert, 
+  ActivityIndicator, 
+  SafeAreaView, 
+  TouchableOpacity, 
+  ScrollView 
+} from 'react-native';
 import Constants from 'expo-constants';
-import { Ionicons, AntDesign } from '@expo/vector-icons';
+import { Ionicons, AntDesign, MaterialIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { RootStackParamList } from '../App';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, addDoc, query, orderBy } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  updateDoc, 
+  orderBy 
+} from 'firebase/firestore';
+
+// Format material type for display
+const formatMaterialTypeLabel = (type: string): string => {
+  const mapping: Record<string, string> = {
+    'fine-ware': 'Fine Ware',
+    'coarse-ware': 'Coarse Ware',
+    'cooking-ware': 'Cooking Ware',
+    'amphora': 'Amphora',
+    'lamp': 'Lamp'
+  };
+  return mapping[type] || type;
+};
 
 // Dynamically derive backend URL based on the Expo dev server host so it works on any network
+// const getServerUrl = () => {
+//   // In Expo dev, debuggerHost is something like "10.0.0.3:8081" or "192.168.x.x:19000"
+//   // We take the IP part and reuse port 8081 where the inference backend runs.
+//   // Fallback to localhost when the property is missing (e.g. production build)
+//   const host = (Constants.manifest as any)?.debuggerHost?.split(':')?.shift() || 'localhost';
+//   return `http://${host}:8001`;
+// };
+
 const getServerUrl = () => {
-  // In Expo dev, debuggerHost is something like "10.0.0.3:8081" or "192.168.x.x:19000"
-  // We take the IP part and reuse port 8081 where the inference backend runs.
-  // Fallback to localhost when the property is missing (e.g. production build)
-  const host = (Constants.manifest as any)?.debuggerHost?.split(':')?.shift() || 'localhost';
-  return `http://${host}:8001`;
+  return 'https://arc-backend-v20v.onrender.com'; // Replace with your actual Render URL
 };
 
 const SERVER_URL = getServerUrl();
@@ -36,6 +76,14 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [isImageAnalysisAvailable, setIsImageAnalysisAvailable] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      setHasCameraPermission(status === 'granted');
+    })();
+  }, []);
   
   // Update image analysis availability when functional type changes
   useEffect(() => {
@@ -117,16 +165,32 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   };
 
   const takePhoto = async () => {
-    const result = await ImagePicker.launchCameraAsync({ 
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-      allowsEditing: true, 
-      aspect: [4, 3], 
-      quality: 1 
-    });
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+    if (hasCameraPermission === false) {
+      Alert.alert(
+        "Permission Required",
+        "Please enable camera access in your device settings to take photos.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+  
+    try {
+      const result = await ImagePicker.launchCameraAsync({ 
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+        allowsEditing: true, 
+        aspect: [4, 3], 
+        quality: 1 
+      });
+  
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
     }
   };
+
 
   const handleAnalyzeImage = async () => {
     if (!imageUri || !totalWeight) {
@@ -275,7 +339,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
 
       {/* Container Info */}
       <View style={styles.projectInfo}>
-        <Text style={styles.projectName}>Container: {route.params.containerId}</Text>
+        <Text style={styles.projectName}>Container {route.params.containerId}</Text>
       </View>
 
       {/* Content */}
@@ -296,7 +360,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
           {/* Table Header */}
           <View style={styles.tableHeader}>
             <View style={{ flex: 2 }}>
-              <Text style={styles.headerCell}>Label</Text>
+              <Text style={styles.headerCell}>Type</Text>
             </View>
             <View style={{ width: 24 }} />
           </View>
@@ -312,20 +376,28 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                     { backgroundColor: index % 2 === 0 ? '#FFF' : '#F8F9FA' }
                   ]}
                   onPress={() => {
-                    // Determine material type from the group label
-                    const materialType = item.label === 'coarse-ware' ? 'coarse-ware' : 'fine-ware';
+                    const materialTypes = [
+                      { id: 'fine-ware', label: 'Fine Ware' },
+                      { id: 'coarse-ware', label: 'Coarse Ware' },
+                      { id: 'cooking-ware', label: 'Cooking Ware' },
+                      { id: 'amphora', label: 'Amphora' },
+                      { id: 'lamp', label: 'Lamp' }
+                    ];
+                    
+                    const materialType = materialTypes.find((type) => type.id === item.label.toLowerCase())?.id || 'fine-ware' as const;
+                    
                     navigation.navigate('MaterialGroup', {
                       projectId: route.params.projectId,
                       studyAreaId: route.params.studyAreaId,
                       suId: route.params.suId,
                       containerId: route.params.containerId,
                       groupId: item.id,
-                      materialType: materialType as 'fine-ware' | 'coarse-ware'
+                      materialType: materialType as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp'
                     });
                   }}
                 >
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.cell}>{item.label}</Text>
+                    <Text style={styles.cell}>{formatMaterialTypeLabel(item.label)}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#666" />
                 </TouchableOpacity>

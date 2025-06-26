@@ -13,13 +13,18 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
-      "API_KEY":"WDe9peT9TxgVDpoZ5CkT",
-      "WORKSPACE":"project1-lwhhu",
-      "WORKFLOW_ID":"detect-and-classify-3-2",
-      "SERVERLESS_URL":"https://serverless.roboflow.com"
-    },    
+      "API_KEY": "WDe9peT9TxgVDpoZ5CkT",
+      "WORKSPACE": "project1-lwhhu",
+      "WORKFLOW_ID": "detect-and-classify-3-2",
+      "SERVERLESS_URL": "https://arc-backend.onrender.com"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.garygao.arcapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to document archaeological materials for research and cataloging.",
+        "NSPhotoLibraryUsageDescription": "The app needs access to your photo library to select images."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +33,15 @@
       },
       "edgeToEdgeEnabled": true
     },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them with your friends.",
+          "cameraPermission": "The app needs access to your camera to take photos."
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }

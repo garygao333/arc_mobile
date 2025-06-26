@@ -139,7 +139,9 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
 
       {/* Group Info */}
       <View style={styles.projectInfo}>
-        <Text style={styles.projectName}>Material Group: {route.params.groupId}</Text>
+        <Text style={styles.projectName}>
+          {route.params.materialType === 'fine-ware' ? 'Fine Ware' : 'Coarse Ware'}
+        </Text>
         {objectGroups.length > 0 && (
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>

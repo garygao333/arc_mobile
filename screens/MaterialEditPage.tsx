@@ -35,7 +35,20 @@ type Sherd = {
 type Props = NativeStackScreenProps<RootStackParamList, 'MaterialEdit'>;
 
 const diagnosticTypes = ['rim', 'base', 'body', 'foot'] as const;
-const qualificationTypes = ['its', 'african', 'black_gloss', 'sardinian', 'thin_wall'] as const;
+
+// Qualification types for fine and coarse ware
+const fineWareQualificationTypes = [
+  { label: 'ITS', value: 'its' },
+  { label: 'African', value: 'african' },
+  { label: 'Black Gloss', value: 'black_gloss' },
+  { label: 'Sardinian', value: 'sardinian' },
+  { label: 'Thin Wall', value: 'thin_wall' }
+] as const;
+
+const coarseWareQualificationTypes = [
+  { label: 'Unidentified', value: 'unidentified' },
+  { label: 'Punic', value: 'punic' }
+] as const;
 
 const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
   const { 
@@ -46,8 +59,14 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
     groupId, 
     initialSherds, 
     annotatedImage, 
-    fromImage 
+    fromImage,
+    materialType = 'fine-ware'
   } = route.params;
+  
+  // Select the appropriate qualification types based on material type
+  const qualificationTypes = materialType === 'coarse-ware' 
+    ? coarseWareQualificationTypes 
+    : fineWareQualificationTypes;
   
   const [sherds, setSherds] = useState<Sherd[]>(initialSherds);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -194,13 +213,11 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
                     style={styles.picker}
                     dropdownIconColor="#6C757D"
                   >
-                    {qualificationTypes.map(type => (
+                    {qualificationTypes.map(({ label, value }) => (
                       <Picker.Item 
-                        key={type} 
-                        label={type.split('_').map(word => 
-                          word.charAt(0).toUpperCase() + word.slice(1)
-                        ).join(' ')} 
-                        value={type} 
+                        key={value} 
+                        label={label}
+                        value={value} 
                       />
                     ))}
                   </Picker>

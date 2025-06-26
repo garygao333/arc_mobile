@@ -12,8 +12,9 @@ export default function StudyAreaPage({ route, navigation }: Props) {
   // Ensure we have the required params
   const { studyAreaId, projectId } = route.params || {};
   const [studyArea, setStudyArea] = useState<{id: string, label: string, description?: string} | null>(null);
-  const [stratUnits, setStratUnits] = useState<{ id: string; label: string }[]>([]);
+  const [stratUnits, setStratUnits] = useState<{ id: string; typology: string; label: string }[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [typologyInput, setTypologyInput] = useState('');
   const [labelInput, setLabelInput] = useState('');
 
   useEffect(() => {
@@ -105,7 +106,8 @@ export default function StudyAreaPage({ route, navigation }: Props) {
       console.log('Found', querySnapshot.size, 'strat units');
       const units = querySnapshot.docs.map(doc => ({
         id: doc.data()?.id || 'unknown',
-        label: doc.data()?.label || 'Unlabeled'
+        typology: doc.data()?.typology || doc.data()?.label || 'Unspecified',
+        label: doc.data()?.label === doc.data()?.typology ? '' : (doc.data()?.label || '')
       }));
       
       console.log('Fetched strat units:', units);
@@ -118,25 +120,35 @@ export default function StudyAreaPage({ route, navigation }: Props) {
   };
 
   const handleAddStratUnit = async () => {
-    if (!labelInput.trim()) {
-      Alert.alert('Error', 'Label is required');
+    if (!typologyInput.trim()) {
+      Alert.alert('Error', 'Typology is required');
       return;
     }
 
-    const existingIds = stratUnits.map(u => parseInt(u.id));
-    const base = parseInt(route.params.studyAreaId) * 100;
-    const nextId = existingIds.length > 0 ? Math.max(...existingIds) + 1 : base + 1;
+    if (!studyAreaId || !projectId) {
+      Alert.alert('Error', 'Missing required parameters');
+      return;
+    }
 
     try {
-      await addDoc(collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits'), {
+      // Get the next available ID
+      const existingIds = stratUnits.map(u => parseInt(u.id));
+      const base = parseInt(studyAreaId) * 100;
+      const nextId = existingIds.length > 0 ? Math.max(...existingIds) + 1 : base + 1;
+
+      await addDoc(collection(db, 'projects', projectId, 'studyAreas', studyAreaId, 'stratUnits'), {
         id: String(nextId),
+        typology: typologyInput.trim(),
         label: labelInput.trim()
       });
+      
       setModalVisible(false);
+      setTypologyInput('');
       setLabelInput('');
       fetchStratUnits();
     } catch (error) {
       console.error('Error adding strat unit:', error);
+      Alert.alert('Error', 'Failed to add strat unit');
     }
   };
 
@@ -169,7 +181,7 @@ export default function StudyAreaPage({ route, navigation }: Props) {
 
       {/* Study Area Info */}
       <View style={styles.projectInfo}>
-        <Text style={styles.projectName}>{String(studyAreaId).padStart(5, '0')}</Text>
+        <Text style={styles.projectName}>Study Area {String(studyAreaId).padStart(5, '0')}</Text>
         <Text style={styles.projectCode}>{studyArea.label}</Text>
         {studyArea.description && (
           <Text style={styles.projectDescription}>{studyArea.description}</Text>
@@ -179,7 +191,7 @@ export default function StudyAreaPage({ route, navigation }: Props) {
       {/* Content */}
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Strat Units</Text>
+          <Text style={styles.title}>Stratigraphic Units</Text>
           <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.addButton}>
             <AntDesign name="plus" size={24} color="black" />
           </TouchableOpacity>
@@ -191,7 +203,10 @@ export default function StudyAreaPage({ route, navigation }: Props) {
           {/* Table Header */}
           <View style={styles.tableHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerCell}>ID</Text>
+              <Text style={styles.headerCell}>SUs</Text>
+            </View>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.headerCell}>Typology</Text>
             </View>
             <View style={{ flex: 2 }}>
               <Text style={styles.headerCell}>Label</Text>
@@ -211,11 +226,16 @@ export default function StudyAreaPage({ route, navigation }: Props) {
                 onPress={() => navigation.navigate('StratUnit', { 
                   suId: unit.id, 
                   projectId: projectId, 
-                  studyAreaId: studyAreaId 
+                  studyAreaId: studyAreaId,
+                  typology: unit.typology,
+                  label: unit.label
                 })}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cell}>{unit.id}</Text>
+                </View>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.cell}>{unit.typology}</Text>
                 </View>
                 <View style={{ flex: 2 }}>
                   <Text style={styles.cell}>{unit.label}</Text>
@@ -238,8 +258,15 @@ export default function StudyAreaPage({ route, navigation }: Props) {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Strat Unit</Text>
             <TextInput
+              style={[styles.modalInput, { marginBottom: 16 }]}
+              placeholder="Enter typology (required)"
+              value={typologyInput}
+              onChangeText={setTypologyInput}
+              placeholderTextColor="#999"
+            />
+            <TextInput
               style={styles.modalInput}
-              placeholder="Enter label"
+              placeholder="Enter label (optional)"
               value={labelInput}
               onChangeText={setLabelInput}
               placeholderTextColor="#999"
@@ -247,15 +274,22 @@ export default function StudyAreaPage({ route, navigation }: Props) {
             <View style={styles.modalButtons}>
               <TouchableOpacity 
                 style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => setModalVisible(false)}
+                onPress={() => {
+                  setModalVisible(false);
+                  setTypologyInput('');
+                  setLabelInput('');
+                }}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.modalButton, styles.createButton]} 
                 onPress={handleAddStratUnit}
+                disabled={!typologyInput.trim()}
               >
-                <Text style={styles.createButtonText}>Create</Text>
+                <Text style={[styles.createButtonText, !typologyInput.trim() && { opacity: 0.5 }]}>
+                  Create
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

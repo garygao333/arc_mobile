@@ -123,7 +123,7 @@ export default function ProjectPage({ route, navigation }: Props) {
           {/* Table Header */}
           <View style={styles.tableHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerCell}>ID</Text>
+              <Text style={styles.headerCell}>Study Area</Text>
             </View>
             <View style={{ flex: 2 }}>
               <Text style={styles.headerCell}>Label</Text>

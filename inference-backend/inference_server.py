@@ -23,7 +23,11 @@ async def root():
     return {"message": "Server is running"}
 
 @app.post("/analyze")
-async def analyze_image(image: UploadFile = File(...), weight: float = Form(...)):
+async def analyze_image(
+    image: UploadFile = File(...), 
+    weight: float = Form(...),
+    material_type: str = Form("fine-ware")
+):
     try:
         print(f"Received image: {image.filename}, weight: {weight}")
         
@@ -36,7 +40,7 @@ async def analyze_image(image: UploadFile = File(...), weight: float = Form(...)
         
         print(f"Image saved to: {image_filename}")
         
-        results = process_image(image_filename, total_weight=weight)
+        results = process_image(image_filename, total_weight=weight, material_type=material_type)
         
         try:
             os.remove(image_filename)

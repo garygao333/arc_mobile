@@ -1,20 +1,39 @@
 import os, json, cv2, numpy as np, base64
 from inference_sdk import InferenceHTTPClient
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
 OUTPUT_DIR = "output"
 API_KEY = os.getenv("API_KEY")
 WORKSPACE = os.getenv("WORKSPACE")
-WORKFLOW_ID = os.getenv("WORKFLOW_ID")
+WORKFLOW_ID_FINE = os.getenv("WORKFLOW_ID_FINE")
+WORKFLOW_ID_COARSE = os.getenv("WORKFLOW_ID_COARSE")
 SERVERLESS_URL = os.getenv("SERVERLESS_URL")
 
-def process_image(image_path: str, total_weight: float = 100):
+def process_image(image_path: str, total_weight: float = 100, material_type: str = "fine-ware"):
+    """
+    Process an image to detect and classify sherds.
+    
+    Args:
+        image_path: Path to the image file
+        total_weight: Total weight of all sherds in grams
+        material_type: Type of material ('fine-ware' or 'coarse-ware')
+    """
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
+    # Select workflow ID based on material type
+    if material_type == "coarse-ware":
+        workflow_id = WORKFLOW_ID_COARSE
+    else:  # Default to fine-ware
+        workflow_id = WORKFLOW_ID_FINE
+        
+    if not workflow_id:
+        raise ValueError(f"No workflow ID configured for material type: {material_type}")
+    
     client = InferenceHTTPClient(api_url=SERVERLESS_URL, api_key=API_KEY)
-    result = client.run_workflow(WORKSPACE, WORKFLOW_ID, images={"image": image_path}, use_cache=False)
+    result = client.run_workflow(WORKSPACE, workflow_id, images={"image": image_path}, use_cache=False)
     result = result[0]
     
     image = cv2.imread(image_path)

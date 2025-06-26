@@ -24,9 +24,35 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
   const [objectGroups, setObjectGroups] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [diagnosticType, setDiagnosticType] = useState('rim');
-  const [qualificationType, setQualificationType] = useState('its');
+  const [qualificationType, setQualificationType] = useState('');
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
+  
+  // Get material type from route params and set default qualification type
+  const materialType = route.params.materialType || 'fine-ware';
+  
+  // Set default qualification type based on material type
+  React.useEffect(() => {
+    if (materialType === 'coarse-ware') {
+      setQualificationType('unidentified');
+    } else {
+      setQualificationType('its');
+    }
+  }, [materialType]);
+  
+  // Qualification type options based on material type
+  const qualificationOptions = materialType === 'coarse-ware' 
+    ? [
+        { label: 'Unidentified', value: 'unidentified' },
+        { label: 'Punic', value: 'punic' }
+      ]
+    : [
+        { label: 'ITS', value: 'its' },
+        { label: 'African', value: 'african' },
+        { label: 'Black Gloss', value: 'black_gloss' },
+        { label: 'Sardinian', value: 'sardinian' },
+        { label: 'Thin Wall', value: 'thin_wall' }
+      ];
 
   useFocusEffect(
     React.useCallback(() => {
@@ -240,11 +266,13 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
                   onValueChange={setQualificationType}
                   style={styles.picker}
                 >
-                  <Picker.Item label="ITS" value="its" />
-                  <Picker.Item label="African" value="african" />
-                  <Picker.Item label="Black Gloss" value="black_gloss" />
-                  <Picker.Item label="Sardinian" value="sardinian" />
-                  <Picker.Item label="Thin Wall" value="thin_wall" />
+                  {qualificationOptions.map(option => (
+                    <Picker.Item 
+                      key={option.value} 
+                      label={option.label} 
+                      value={option.value} 
+                    />
+                  ))}
                 </Picker>
               </View>
             </View>
@@ -396,9 +424,14 @@ const styles = StyleSheet.create({
     color: '#212529',
   },
   emptyState: {
-    padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 40,
+  },
+  qualificationLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
   emptyStateText: {
     marginTop: 16,

@@ -75,11 +75,10 @@ export default function HomePage({ navigation }: Props) {
               style={styles.card}
               onPress={() => navigation.navigate('Project', { projectId: project.id })}
             >
-              <View style={styles.cardTop} />
-              <View style={styles.cardBottom}>
+              <View style={styles.cardContent}>
                 <Text style={styles.cardTitle}>
                   {project.name}
-                  {project.code && `(${project.code})`}
+                  {project.code && ` (${project.code})`}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -137,7 +136,7 @@ export default function HomePage({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
   header: {
     backgroundColor: '#2D0C57',
@@ -179,20 +178,15 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     borderRadius: 12,
-    overflow: 'hidden',
-    elevation: 2,
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 2,
   },
-  cardTop: {
-    height: 100,
-    backgroundColor: '#EEEEEE',
-  },
-  cardBottom: {
-    backgroundColor: '#F8F9FA',
-    padding: 12,
+  cardContent: {
+    padding: 16,
   },
   cardTitle: {
     fontSize: 16,

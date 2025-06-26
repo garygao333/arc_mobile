@@ -35,6 +35,12 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   const [totalWeight, setTotalWeight] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [isImageAnalysisAvailable, setIsImageAnalysisAvailable] = useState(false);
+  
+  // Update image analysis availability when functional type changes
+  useEffect(() => {
+    setIsImageAnalysisAvailable(functionalType === 'fine-ware' || functionalType === 'coarse-ware');
+  }, [functionalType]);
 
   useEffect(() => {
     fetchGroups();
@@ -76,12 +82,16 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
 
       fetchGroups();
 
+      // Determine material type based on functional type
+      const materialType = functionalType === 'coarse-ware' ? 'coarse-ware' : 'fine-ware';
+      
       navigation.navigate('MaterialGroup', {
         projectId: route.params.projectId,
         studyAreaId: route.params.studyAreaId,
         suId: route.params.suId,
         containerId: route.params.containerId,
-        groupId: docRef.id
+        groupId: docRef.id,
+        materialType: materialType as 'fine-ware' | 'coarse-ware'
       });
     } catch (err) {
       console.error('Error adding material group:', err);
@@ -121,6 +131,12 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   const handleAnalyzeImage = async () => {
     if (!imageUri || !totalWeight) {
       Alert.alert("Missing Data", "Please select an image and enter total weight");
+      return;
+    }
+    
+    // Ensure the functional type is valid for image analysis
+    if (functionalType !== 'fine-ware' && functionalType !== 'coarse-ware') {
+      Alert.alert("Invalid Material Type", "Image analysis is only available for Fine Ware and Coarse Ware.");
       return;
     }
   
@@ -175,6 +191,9 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
   
+      // Add the material type to the form data
+      formData.append('material_type', functionalType);
+      
       const response = await fetch(`${SERVER_URL}/analyze`, {
         method: 'POST',
         body: formData,
@@ -207,6 +226,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       setTotalWeight('');
   
       // Navigate to the edit screen with results
+      const materialType = functionalType === 'coarse-ware' ? 'coarse-ware' : 'fine-ware';
       navigation.navigate('MaterialEdit', {
         projectId: route.params.projectId,
         studyAreaId: route.params.studyAreaId,
@@ -215,7 +235,8 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         groupId: docRef.id,
         initialSherds: result.sherds || [],
         annotatedImage: result.annotated_image || null,
-        fromImage: true 
+        fromImage: true,
+        materialType: materialType as 'fine-ware' | 'coarse-ware'
       });
   
     } catch (error) {
@@ -290,13 +311,18 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                     styles.tableRow,
                     { backgroundColor: index % 2 === 0 ? '#FFF' : '#F8F9FA' }
                   ]}
-                  onPress={() => navigation.navigate('MaterialGroup', {
-                    projectId: route.params.projectId,
-                    studyAreaId: route.params.studyAreaId,
-                    suId: route.params.suId,
-                    containerId: route.params.containerId,
-                    groupId: item.id
-                  })}
+                  onPress={() => {
+                    // Determine material type from the group label
+                    const materialType = item.label === 'coarse-ware' ? 'coarse-ware' : 'fine-ware';
+                    navigation.navigate('MaterialGroup', {
+                      projectId: route.params.projectId,
+                      studyAreaId: route.params.studyAreaId,
+                      suId: route.params.suId,
+                      containerId: route.params.containerId,
+                      groupId: item.id,
+                      materialType: materialType as 'fine-ware' | 'coarse-ware'
+                    });
+                  }}
                 >
                   <View style={{ flex: 2 }}>
                     <Text style={styles.cell}>{item.label}</Text>
@@ -382,11 +408,25 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.methodButton}
-              onPress={handleImageMethod}
+              style={[
+                styles.methodButton,
+                !isImageAnalysisAvailable && styles.disabledButton
+              ]}
+              onPress={isImageAnalysisAvailable ? handleImageMethod : undefined}
+              disabled={!isImageAnalysisAvailable}
             >
-              <Ionicons name="camera-outline" size={24} color="#2D0C57" />
-              <Text style={styles.methodButtonText}>Image Analysis</Text>
+              <Ionicons 
+                name="camera-outline" 
+                size={24} 
+                color={isImageAnalysisAvailable ? "#2D0C57" : "#999"} 
+              />
+              <Text style={[
+                styles.methodButtonText,
+                !isImageAnalysisAvailable && styles.disabledButtonText
+              ]}>
+                Image Analysis
+                {!isImageAnalysisAvailable && ' (Fine/Coarse Ware Only)'}
+              </Text>
             </TouchableOpacity>
             
             <View style={styles.modalButtons}>
@@ -746,5 +786,8 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  disabledButtonText: {
+    color: '#999',
   },
 });

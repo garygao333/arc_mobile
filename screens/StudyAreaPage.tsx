@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Alert, ScrollView, SafeAreaView } from 'react-native';
+import NumberInput from '../components/NumberInput';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
@@ -296,33 +297,36 @@ export default function StudyAreaPage({ route, navigation }: Props) {
               <Text style={styles.modalTitle}>Add Stratigraphic Unit</Text>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Stratigraphic Unit ID</Text>
-                <TextInput
+                <NumberInput
                   placeholder="e.g., 1001"
                   value={stratUnitId}
                   onChangeText={setStratUnitId}
                   style={styles.modalInput}
                   placeholderTextColor="#999"
                   keyboardType="number-pad"
+                  returnKeyType="done"
                 />
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Typology</Text>
-                <TextInput
+                <NumberInput
                   placeholder="Typology"
                   value={typologyInput}
                   onChangeText={setTypologyInput}
                   style={styles.modalInput}
                   placeholderTextColor="#999"
+                  returnKeyType="done"
                 />
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Short description</Text>
-                <TextInput
+                <NumberInput
                   placeholder="Short description"
                   value={labelInput}
                   onChangeText={setLabelInput}
                   style={styles.modalInput}
                   placeholderTextColor="#999"
+                  returnKeyType="done"
                 />
               </View>
               <View style={styles.modalButtons}>

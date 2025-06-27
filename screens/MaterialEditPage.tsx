@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   View, 
   Text, 
-  TextInput, 
   StyleSheet, 
   Alert, 
   Image, 
@@ -11,6 +10,7 @@ import {
   SafeAreaView,
   ActivityIndicator
 } from 'react-native';
+import NumberInput from '../components/NumberInput';
 import { Picker } from '@react-native-picker/picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -339,11 +339,9 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Weight (grams)</Text>
-                <TextInput
-                  style={styles.input}
+                <NumberInput
                   value={sherd.weight?.toString() || ''}
                   onChangeText={(value) => updateSherd(index, 'weight', parseFloat(value) || 0)}
-                  keyboardType="numeric"
                   placeholder="0.0"
                   placeholderTextColor="#ADB5BD"
                 />

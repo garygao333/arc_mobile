@@ -116,6 +116,9 @@ export default function UniversalDatabaseViewer({ projectFilter }: Props) {
           placeholder="Filter by project (e.g., TH)"
           value={searchProject}
           onChangeText={setSearchProject}
+          returnKeyType="done"
+          blurOnSubmit={true}
+          onSubmitEditing={() => {}}
         />
         <Button title="Search" onPress={fetchSherds} />
       </View>

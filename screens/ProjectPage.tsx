@@ -5,11 +5,12 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   Modal, 
-  TextInput, 
   Alert, 
   SafeAreaView,
-  ScrollView
+  ScrollView,
+  TextInput
 } from 'react-native';
+import NumberInput from '../components/NumberInput';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
@@ -185,13 +186,11 @@ export default function ProjectPage({ route, navigation }: Props) {
             <Text style={styles.modalTitle}>Add Study Area</Text>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Study Area ID</Text>
-              <TextInput
+              <NumberInput
                 placeholder="e.g., 01000"
                 value={studyAreaId}
                 onChangeText={setStudyAreaId}
-                style={styles.input}
                 placeholderTextColor="#999"
-                keyboardType="number-pad"
                 maxLength={5}
               />
             </View>
@@ -203,6 +202,9 @@ export default function ProjectPage({ route, navigation }: Props) {
                 onChangeText={setLabelInput}
                 style={styles.input}
                 placeholderTextColor="#999"
+                returnKeyType="done"
+                blurOnSubmit={true}
+                onSubmitEditing={() => {}}
               />
             </View>
             <View style={styles.modalButtons}>

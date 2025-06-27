@@ -5,12 +5,12 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   Modal, 
-  TextInput, 
   Alert, 
   ScrollView,
   SafeAreaView,
   ActivityIndicator
 } from 'react-native';
+import NumberInput from '../components/NumberInput';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -495,10 +495,8 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Weight (grams)</Text>
-              <TextInput
-                style={styles.input}
+              <NumberInput
                 placeholder="Weight"
-                keyboardType="decimal-pad"
                 value={weight}
                 onChangeText={setWeight}
               />
@@ -506,10 +504,8 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Count</Text>
-              <TextInput
-                style={styles.input}
+              <NumberInput
                 placeholder="Count"
-                keyboardType="number-pad"
                 value={count}
                 onChangeText={setCount}
               />

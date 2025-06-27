@@ -3,22 +3,27 @@ import {
   View, 
   Text, 
   FlatList, 
-  Button, 
+  TouchableOpacity, 
   StyleSheet, 
   Modal, 
-  TextInput, 
-  Image, 
-  Alert, 
   ActivityIndicator, 
+  Alert, 
   SafeAreaView, 
-  TouchableOpacity, 
-  ScrollView 
+  ScrollView,
+  RefreshControl,
+  Platform,
+  InputAccessoryView,
+  Keyboard,
+  Button,
+  TextInput, 
+  Image
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import NumberInput from '../components/NumberInput';
 import Constants from 'expo-constants';
 import { Ionicons, AntDesign, MaterialIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import { Picker } from '@react-native-picker/picker';
 import { RootStackParamList } from '../App';
 import { db } from '../firebaseConfig';
 import { 
@@ -603,15 +608,17 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Material Group ID</Text>
-              <TextInput
+              <NumberInput
                 value={materialGroupId}
                 onChangeText={setMaterialGroupId}
+                inputAccessoryViewID="doneInputAccessory"
                 style={[styles.input, { backgroundColor: '#fff' }]}
                 placeholderTextColor="#999"
                 keyboardType="number-pad"
                 autoCapitalize="none"
                 autoCorrect={false}
                 selectTextOnFocus={true}
+                returnKeyType="done"
               />
             </View>
 
@@ -651,6 +658,31 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
             </View>
           </View>
         </View>
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID="doneInputAccessory">
+          <View style={{ 
+            flexDirection: 'row', 
+            justifyContent: 'flex-end',
+            backgroundColor: '#f8f8f8',
+            borderTopWidth: 1,
+            borderTopColor: '#e0e0e0',
+            padding: 8
+          }}>
+            <TouchableOpacity 
+              onPress={() => Keyboard.dismiss()}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 4,
+                backgroundColor: '#007AFF',
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: '600' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
+
       </Modal>
 
       <Modal visible={methodSelectModal} animationType="slide" transparent>
@@ -712,18 +744,12 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Total Weight (grams)</Text>
-              <TextInput 
-                style={styles.input} 
+              <NumberInput
                 placeholder="Enter total weight"
-                keyboardType="decimal-pad" 
-                returnKeyType="done"
-                value={totalWeight} 
+                value={totalWeight}
                 onChangeText={setTotalWeight}
-                onSubmitEditing={() => {
-                  // This will be called when the Done button is pressed
-                  // The keyboard will automatically dismiss due to blurOnSubmit
-                }}
-                blurOnSubmit={true}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
               />
             </View>
             

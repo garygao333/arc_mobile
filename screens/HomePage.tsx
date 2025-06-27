@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, SafeAreaView } from 'react-native';
+import NumberInput from '../components/NumberInput';
 import { AntDesign } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -120,30 +121,27 @@ export default function HomePage({ navigation }: Props) {
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>New Project</Text>
-            <TextInput 
+            <NumberInput 
               placeholder="Name" 
-              style={styles.input} 
               value={name} 
-              onChangeText={setName} 
+              onChangeText={setName}
             />
-            <TextInput 
+            <NumberInput 
               placeholder="Code (e.g., TH)" 
-              style={styles.input} 
               value={code} 
               onChangeText={setCode} 
               maxLength={10}
               autoCapitalize="characters"
             />
-            <TextInput 
+            <NumberInput 
               placeholder="Password (optional)" 
-              style={styles.input} 
               value={password} 
               onChangeText={setPassword}
               secureTextEntry
             />
-            <TextInput 
+            <NumberInput 
               placeholder="Description" 
-              style={[styles.input, styles.descriptionInput]} 
+              style={styles.descriptionInput}
               value={description} 
               onChangeText={setDescription}
               multiline
@@ -175,14 +173,15 @@ export default function HomePage({ navigation }: Props) {
             <Text style={styles.subtitle}>
               {selectedProject?.name} {selectedProject?.code ? `(${selectedProject.code})` : ''}
             </Text>
-            <TextInput 
+            <NumberInput 
               placeholder={selectedProject?.password ? 'Enter password' : 'No password (press OK)'}
-              style={styles.input} 
               value={enteredPassword} 
               onChangeText={setEnteredPassword}
               secureTextEntry={!!selectedProject?.password}
-              editable={!!selectedProject?.password}
+              editable={true}
               onSubmitEditing={handlePasswordSubmit}
+              autoFocus={true}
+              enablesReturnKeyAutomatically={true}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity 

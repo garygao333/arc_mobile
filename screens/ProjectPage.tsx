@@ -35,6 +35,7 @@ export default function ProjectPage({ route, navigation }: Props) {
   const [project, setProject] = useState<Project | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [labelInput, setLabelInput] = useState('');
+  const [studyAreaId, setStudyAreaId] = useState('');
 
   useEffect(() => {
     fetchProject();
@@ -63,26 +64,45 @@ export default function ProjectPage({ route, navigation }: Props) {
     }
   };
 
-  const handleAddStudyArea = async () => {
-    if (!labelInput.trim()) {
-      Alert.alert('Error', 'Label is required');
-      return;
-    }
-
+  // Generate a new study area ID when the modal opens
+  const openStudyAreaModal = () => {
     const existingIds = studyAreas.map(a => parseInt(a.id));
     const nextId = existingIds.length > 0 ? Math.max(...existingIds) + 1000 : 1000;
     const newId = String(nextId).padStart(5, '0');
+    setStudyAreaId(newId);
+    setModalVisible(true);
+  };
+
+  const handleAddStudyArea = async () => {
+    if (!labelInput.trim()) {
+      Alert.alert('Error', 'Short description is required');
+      return;
+    }
+
+    // Validate study area ID format (5 digits)
+    if (!/^\d{5}$/.test(studyAreaId)) {
+      Alert.alert('Error', 'Study Area ID must be a 5-digit number');
+      return;
+    }
+
+    // Check if ID already exists
+    if (studyAreas.some(area => area.id === studyAreaId)) {
+      Alert.alert('Error', 'A study area with this ID already exists');
+      return;
+    }
 
     try {
       await addDoc(collection(db, 'projects', route.params.projectId, 'studyAreas'), {
-        id: newId,
+        id: studyAreaId,
         label: labelInput.trim()
       });
       setModalVisible(false);
       setLabelInput('');
+      setStudyAreaId('');
       fetchStudyAreas();
     } catch (error) {
       console.error('Error adding study area:', error);
+      Alert.alert('Error', 'Failed to create study area. Please try again.');
     }
   };
 
@@ -112,7 +132,7 @@ export default function ProjectPage({ route, navigation }: Props) {
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Study Areas</Text>
-          <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.addButton}>
+          <TouchableOpacity onPress={openStudyAreaModal} style={styles.addButton}>
             <AntDesign name="plus" size={24} color="black" />
           </TouchableOpacity>
         </View>
@@ -163,13 +183,28 @@ export default function ProjectPage({ route, navigation }: Props) {
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>Add Study Area</Text>
-            <TextInput
-              placeholder="Short description"
-              value={labelInput}
-              onChangeText={setLabelInput}
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Study Area ID</Text>
+              <TextInput
+                placeholder="e.g., 01000"
+                value={studyAreaId}
+                onChangeText={setStudyAreaId}
+                style={styles.input}
+                placeholderTextColor="#999"
+                keyboardType="number-pad"
+                maxLength={5}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Short description</Text>
+              <TextInput
+                placeholder="Short description"
+                value={labelInput}
+                onChangeText={setLabelInput}
+                style={styles.input}
+                placeholderTextColor="#999"
+              />
+            </View>
             <View style={styles.modalButtons}>
               <TouchableOpacity 
                 style={[styles.modalButton, styles.cancelButton]}
@@ -315,14 +350,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 16,
     fontSize: 16,
-    backgroundColor: '#FFF',
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
   },
   modalButtons: {
     flexDirection: 'row',

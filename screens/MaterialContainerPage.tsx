@@ -72,6 +72,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   
   // Form states
   const [functionalType, setFunctionalType] = useState('fine-ware');
+  const [materialGroupId, setMaterialGroupId] = useState('');
   const [totalWeight, setTotalWeight] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -117,7 +118,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   const generateMaterialId = async () => {
     try {
       const groupsRef = collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits', route.params.suId, 'materialGroups');
-      const q = query(groupsRef, orderBy('createdAt', 'desc'));
+      const q = query(groupsRef, orderBy('materialId', 'desc'));
       const querySnapshot = await getDocs(q);
       
       // Get the highest existing material number
@@ -127,7 +128,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         if (materialId) {
           const parts = materialId.split('-');
           if (parts.length > 1) {
-            const num = parseInt(parts[1], 10);
+            const num = parseInt(parts[parts.length - 1], 10);
             if (!isNaN(num) && num >= nextNumber) {
               nextNumber = num + 1;
             }
@@ -143,9 +144,51 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
     }
   };
 
+  const openFunctionalTypeModal = async () => {
+    try {
+      const newId = await generateMaterialId();
+      setMaterialGroupId(newId);
+      setFunctionalTypeModal(true);
+    } catch (error) {
+      console.error('Error generating material ID:', error);
+      Alert.alert('Error', 'Failed to generate material group ID');
+    }
+  };
+
+  // Generate a new material group ID when the modal opens
+  useEffect(() => {
+    if (functionalTypeModal) {
+      generateMaterialId().then(id => {
+        setMaterialGroupId(id);
+      });
+    }
+  }, [functionalTypeModal]);
+
   const handleCreateGroup = async () => {
     if (!functionalType) {
       Alert.alert('Error', 'Please select a material type');
+      return;
+    }
+
+    if (!materialGroupId) {
+      Alert.alert('Error', 'Material Group ID is required');
+      return;
+    }
+
+    // Validate material group ID format (should be in format SU_ID-NUMBER)
+    const idPattern = new RegExp(`^${route.params.suId}-\\d+$`);
+    if (!idPattern.test(materialGroupId)) {
+      Alert.alert('Error', `Material Group ID must be in format: ${route.params.suId}-NUMBER`);
+      return;
+    }
+
+    // Check if ID already exists
+    const groupsRef = collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits', route.params.suId, 'materialGroups');
+    const q = query(groupsRef, where('materialId', '==', materialGroupId));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      Alert.alert('Error', 'A material group with this ID already exists');
       return;
     }
 
@@ -154,8 +197,6 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
     
     // Create the material group
     try {
-      const materialId = await generateMaterialId();
-      
       // Create the material group document
       const docRef = await addDoc(collection(
         db,
@@ -164,7 +205,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         'stratUnits', route.params.suId,
         'materialGroups'
       ), {
-        materialId,
+        materialId: materialGroupId,
         materialType: functionalType,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -179,10 +220,10 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         projectId: route.params.projectId,
         studyAreaId: route.params.studyAreaId,
         suId: route.params.suId,
-        containerId: route.params.containerId, // Add the missing containerId
+        containerId: route.params.containerId,
         groupId: docRef.id,
         materialType: functionalType as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp',
-        materialId: materialId
+        materialId: materialGroupId
       });
       
       // Refresh the groups list
@@ -197,7 +238,27 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   const handleFormMethod = async () => {
     try {
       // First, create the material group document
-      const materialId = await generateMaterialId();
+      if (!materialGroupId) {
+        Alert.alert('Error', 'Material Group ID is required');
+        return;
+      }
+      
+      // Validate material group ID format (should be in format SU_ID-NUMBER)
+      const idPattern = new RegExp(`^${route.params.suId}-\\d+$`);
+      if (!idPattern.test(materialGroupId)) {
+        Alert.alert('Error', `Material Group ID must be in format: ${route.params.suId}-NUMBER`);
+        return;
+      }
+      
+      // Check if ID already exists
+      const groupsRef = collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits', route.params.suId, 'materialGroups');
+      const q = query(groupsRef, where('materialId', '==', materialGroupId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        Alert.alert('Error', 'A material group with this ID already exists');
+        return;
+      }
       const docRef = await addDoc(collection(
         db,
         'projects', route.params.projectId,
@@ -205,7 +266,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         'stratUnits', route.params.suId,
         'materialGroups'
       ), {
-        materialId,
+        materialId: materialGroupId,
         materialType: functionalType,
         label: functionalType,
         createdAt: new Date(),
@@ -231,7 +292,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         containerId: route.params.containerId,
         groupId: docRef.id,
         materialType: functionalType as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp',
-        materialId: materialId
+        materialId: materialGroupId
       });
       
     } catch (err) {
@@ -419,6 +480,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
     setImageInputModal(false);
     setImageUri(null);
     setTotalWeight('');
+    setMaterialGroupId('');
   };
 
 
@@ -512,7 +574,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                 <Text style={styles.emptyStateText}>No material groups yet</Text>
                 <TouchableOpacity 
                   style={styles.addButtonLarge}
-                  onPress={() => setFunctionalTypeModal(true)}
+                  onPress={openFunctionalTypeModal}
                 >
                   <Text style={styles.addButtonText}>Add Material Group</Text>
                 </TouchableOpacity>
@@ -530,8 +592,22 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Functional Type</Text>
+            <Text style={styles.modalTitle}>Create Material Group</Text>
             
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Material Group ID</Text>
+              <TextInput
+                value={materialGroupId}
+                onChangeText={setMaterialGroupId}
+                style={[styles.input, { backgroundColor: '#fff' }]}
+                placeholderTextColor="#999"
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                selectTextOnFocus={true}
+              />
+            </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Material Type</Text>
               <View style={styles.pickerContainer}>

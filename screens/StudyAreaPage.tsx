@@ -14,6 +14,7 @@ export default function StudyAreaPage({ route, navigation }: Props) {
   const [studyArea, setStudyArea] = useState<{id: string, label: string, description?: string} | null>(null);
   const [stratUnits, setStratUnits] = useState<{ id: string; typology: string; label: string }[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [stratUnitId, setStratUnitId] = useState('');
   const [typologyInput, setTypologyInput] = useState('');
   const [labelInput, setLabelInput] = useState('');
 
@@ -119,7 +120,21 @@ export default function StudyAreaPage({ route, navigation }: Props) {
     }
   };
 
+  // Generate a new strat unit ID when the modal opens
+  const openStratUnitModal = () => {
+    const existingIds = stratUnits.map(u => parseInt(u.id));
+    const base = parseInt(studyAreaId) * 100;
+    const nextId = existingIds.length > 0 ? Math.max(...existingIds) + 1 : base + 1;
+    setStratUnitId(String(nextId));
+    setModalVisible(true);
+  };
+
   const handleAddStratUnit = async () => {
+    if (!stratUnitId) {
+      Alert.alert('Error', 'Stratigraphic Unit ID is required');
+      return;
+    }
+
     if (!typologyInput.trim()) {
       Alert.alert('Error', 'Typology is required');
       return;
@@ -130,25 +145,33 @@ export default function StudyAreaPage({ route, navigation }: Props) {
       return;
     }
 
-    try {
-      // Get the next available ID
-      const existingIds = stratUnits.map(u => parseInt(u.id));
-      const base = parseInt(studyAreaId) * 100;
-      const nextId = existingIds.length > 0 ? Math.max(...existingIds) + 1 : base + 1;
+    // Validate strat unit ID format (must be a number)
+    if (!/^\d+$/.test(stratUnitId)) {
+      Alert.alert('Error', 'Stratigraphic Unit ID must be a number');
+      return;
+    }
 
+    // Check if ID already exists
+    if (stratUnits.some(unit => unit.id === stratUnitId)) {
+      Alert.alert('Error', 'A stratigraphic unit with this ID already exists');
+      return;
+    }
+
+    try {
       await addDoc(collection(db, 'projects', projectId, 'studyAreas', studyAreaId, 'stratUnits'), {
-        id: String(nextId),
+        id: stratUnitId,
         typology: typologyInput.trim(),
         label: labelInput.trim()
       });
       
       setModalVisible(false);
+      setStratUnitId('');
       setTypologyInput('');
       setLabelInput('');
       fetchStratUnits();
     } catch (error) {
       console.error('Error adding strat unit:', error);
-      Alert.alert('Error', 'Failed to add strat unit');
+      Alert.alert('Error', 'Failed to add stratigraphic unit');
     }
   };
 
@@ -192,7 +215,7 @@ export default function StudyAreaPage({ route, navigation }: Props) {
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Stratigraphic Units</Text>
-          <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.addButton}>
+          <TouchableOpacity onPress={openStratUnitModal} style={styles.addButton}>
             <AntDesign name="plus" size={24} color="black" />
           </TouchableOpacity>
         </View>
@@ -271,25 +294,43 @@ export default function StudyAreaPage({ route, navigation }: Props) {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Add Stratigraphic Unit</Text>
-              <TextInput
-                style={[styles.modalInput, { marginBottom: 16 }]}
-                placeholder="Typology"
-                value={typologyInput}
-                onChangeText={setTypologyInput}
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Short description"
-                value={labelInput}
-                onChangeText={setLabelInput}
-                placeholderTextColor="#999"
-              />
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Stratigraphic Unit ID</Text>
+                <TextInput
+                  placeholder="e.g., 1001"
+                  value={stratUnitId}
+                  onChangeText={setStratUnitId}
+                  style={styles.modalInput}
+                  placeholderTextColor="#999"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Typology</Text>
+                <TextInput
+                  placeholder="Typology"
+                  value={typologyInput}
+                  onChangeText={setTypologyInput}
+                  style={styles.modalInput}
+                  placeholderTextColor="#999"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Short description</Text>
+                <TextInput
+                  placeholder="Short description"
+                  value={labelInput}
+                  onChangeText={setLabelInput}
+                  style={styles.modalInput}
+                  placeholderTextColor="#999"
+                />
+              </View>
               <View style={styles.modalButtons}>
                 <TouchableOpacity 
                   style={[styles.modalButton, styles.cancelButton]} 
                   onPress={() => {
                     setModalVisible(false);
+                    setStratUnitId('');
                     setTypologyInput('');
                     setLabelInput('');
                   }}
@@ -436,14 +477,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: '#333',
   },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
   modalInput: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 24,
     fontSize: 16,
-    backgroundColor: '#FFF',
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
   },
   modalButtons: {
     flexDirection: 'row',

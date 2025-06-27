@@ -96,54 +96,147 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
 
   const fetchGroups = async () => {
     try {
-      const q = query(collection(
-        db,
-        'projects', route.params.projectId,
-        'studyAreas', route.params.studyAreaId,
-        'stratUnits', route.params.suId,
-        'containers', route.params.containerId,
-        'groups'
-      ), orderBy('label'));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setGroups(data);
-    } catch (err) {
-      console.error('Error fetching material groups:', err);
+      const groupsRef = collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits', route.params.suId, 'materialGroups');
+      const q = query(groupsRef, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const groupsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        materialId: doc.data().materialId || '',
+        materialType: doc.data().materialType,
+        totalWeight: doc.data().totalWeight || 0,
+        sherdCount: doc.data().sherdCount || 0,
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+      }));
+      setGroups(groupsData);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      Alert.alert('Error', 'Failed to load material groups');
     }
   };
 
-  const handleFormMethod = async () => {
+  const generateMaterialId = async () => {
     try {
+      const groupsRef = collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits', route.params.suId, 'materialGroups');
+      const q = query(groupsRef, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      
+      // Get the highest existing material number
+      let nextNumber = 1;
+      querySnapshot.forEach((doc) => {
+        const materialId = doc.data().materialId;
+        if (materialId) {
+          const parts = materialId.split('-');
+          if (parts.length > 1) {
+            const num = parseInt(parts[1], 10);
+            if (!isNaN(num) && num >= nextNumber) {
+              nextNumber = num + 1;
+            }
+          }
+        }
+      });
+      
+      return `${route.params.suId}-${nextNumber}`;
+    } catch (error) {
+      console.error('Error generating material ID:', error);
+      // Fallback to timestamp if there's an error
+      return `${route.params.suId}-${Date.now()}`;
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!functionalType) {
+      Alert.alert('Error', 'Please select a material type');
+      return;
+    }
+
+    setMethodSelectModal(false);
+    setFunctionalTypeModal(false);
+    
+    // Create the material group
+    try {
+      const materialId = await generateMaterialId();
+      
+      // Create the material group document
       const docRef = await addDoc(collection(
         db,
         'projects', route.params.projectId,
         'studyAreas', route.params.studyAreaId,
         'stratUnits', route.params.suId,
-        'containers', route.params.containerId,
-        'groups'
+        'materialGroups'
       ), {
-        label: functionalType
+        materialId,
+        materialType: functionalType,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        totalWeight: 0,
+        sherdCount: 0
+      });
+      
+      console.log('Created material group with ID:', docRef.id);
+      
+      // Navigate to the MaterialGroup screen
+      navigation.navigate('MaterialGroup', {
+        projectId: route.params.projectId,
+        studyAreaId: route.params.studyAreaId,
+        suId: route.params.suId,
+        containerId: route.params.containerId, // Add the missing containerId
+        groupId: docRef.id,
+        materialType: functionalType as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp',
+        materialId: materialId
+      });
+      
+      // Refresh the groups list
+      fetchGroups();
+      
+    } catch (error) {
+      console.error('Error creating material group:', error);
+      Alert.alert('Error', 'Failed to create material group: ' + (error as Error).message);
+    }
+  };
+
+  const handleFormMethod = async () => {
+    try {
+      // First, create the material group document
+      const materialId = await generateMaterialId();
+      const docRef = await addDoc(collection(
+        db,
+        'projects', route.params.projectId,
+        'studyAreas', route.params.studyAreaId,
+        'stratUnits', route.params.suId,
+        'materialGroups'
+      ), {
+        materialId,
+        materialType: functionalType,
+        label: functionalType,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        totalWeight: 0,
+        sherdCount: 0
       });
 
+      console.log('Created material group with ID:', docRef.id);
+      
+      // Close modals
       setMethodSelectModal(false);
       setFunctionalTypeModal(false);
 
-      fetchGroups();
+      // Refresh the groups list and wait for it to complete
+      await fetchGroups();
 
-      // Determine material type based on functional type
-      const materialType = functionalType === 'coarse-ware' ? 'coarse-ware' : 'fine-ware';
-      
+      // Navigate to the new material group
       navigation.navigate('MaterialGroup', {
         projectId: route.params.projectId,
         studyAreaId: route.params.studyAreaId,
         suId: route.params.suId,
         containerId: route.params.containerId,
         groupId: docRef.id,
-        materialType: materialType as 'fine-ware' | 'coarse-ware'
+        materialType: functionalType as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp',
+        materialId: materialId
       });
+      
     } catch (err) {
       console.error('Error adding material group:', err);
-      Alert.alert("Error", "Failed to create material group");
+      Alert.alert("Error", `Failed to create material group: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -207,21 +300,26 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
     try {
       setImageLoading(true);
       console.log('Starting image analysis...');
-  
-      // Create document reference first
-      const docRef = await addDoc(collection(
+      
+      // First, create the material group document
+      const materialId = await generateMaterialId();
+      const groupRef = await addDoc(collection(
         db,
         'projects', route.params.projectId,
         'studyAreas', route.params.studyAreaId,
         'stratUnits', route.params.suId,
-        'containers', route.params.containerId,
-        'groups'
+        'materialGroups'
       ), {
+        materialId,
+        materialType: functionalType,
         label: functionalType,
-        createdAt: new Date().toISOString()
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        totalWeight: 0,
+        sherdCount: 0
       });
-  
-      console.log('Created document with ID:', docRef.id);
+      
+      console.log('Created material group with ID:', groupRef.id);
   
       // Prepare the image file
       const uriParts = imageUri.split('.');
@@ -241,29 +339,20 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       }
       
       formData.append('weight', weightValue.toString());
+      formData.append('material_type', functionalType);
       
       // Log form data for debugging
       console.log('Sending request to server...');
-      console.log('Form data entries:');
-      // @ts-ignore - _parts is not in the TypeScript type definition but exists in React Native
-      const formDataEntries = formData._parts || [];
-      formDataEntries.forEach(([key, value]: [string, any]) => {
-        console.log(`- ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
-      });
       
       // Add timeout to the fetch request
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
   
-      // Add the material type to the form data
-      formData.append('material_type', functionalType);
-      
       const response = await fetch(`${SERVER_URL}/analyze`, {
         method: 'POST',
         body: formData,
         headers: {
           'Accept': 'application/json',
-          // Let the browser set the Content-Type with the correct boundary
         },
         signal: controller.signal
       });
@@ -288,19 +377,22 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       setImageLoading(false);
       setImageUri(null);
       setTotalWeight('');
+      
+      // Refresh the groups list
+      await fetchGroups();
   
       // Navigate to the edit screen with results
-      const materialType = functionalType === 'coarse-ware' ? 'coarse-ware' : 'fine-ware';
       navigation.navigate('MaterialEdit', {
         projectId: route.params.projectId,
         studyAreaId: route.params.studyAreaId,
         suId: route.params.suId,
         containerId: route.params.containerId,
-        groupId: docRef.id,
+        groupId: groupRef.id,
+        materialId: materialId,
         initialSherds: result.sherds || [],
         annotatedImage: result.annotated_image || null,
         fromImage: true,
-        materialType: materialType as 'fine-ware' | 'coarse-ware'
+        materialType: functionalType as 'fine-ware' | 'coarse-ware'
       });
   
     } catch (error) {
@@ -339,7 +431,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
 
       {/* Container Info */}
       <View style={styles.projectInfo}>
-        <Text style={styles.projectName}>Container {route.params.containerId}</Text>
+        <Text style={styles.projectName}>Stratigratphic Unit {route.params.suId}</Text>
       </View>
 
       {/* Content */}
@@ -360,7 +452,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
           {/* Table Header */}
           <View style={styles.tableHeader}>
             <View style={{ flex: 2 }}>
-              <Text style={styles.headerCell}>Type</Text>
+              <Text style={styles.headerCell}>ID - Type</Text>
             </View>
             <View style={{ width: 24 }} />
           </View>
@@ -384,7 +476,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                       { id: 'lamp', label: 'Lamp' }
                     ];
                     
-                    const materialType = materialTypes.find((type) => type.id === item.label.toLowerCase())?.id || 'fine-ware' as const;
+                    const materialType = (materialTypes.find((type) => type.id === item.materialType.toLowerCase())?.id || 'fine-ware') as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp';
                     
                     navigation.navigate('MaterialGroup', {
                       projectId: route.params.projectId,
@@ -392,12 +484,15 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                       suId: route.params.suId,
                       containerId: route.params.containerId,
                       groupId: item.id,
-                      materialType: materialType as 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp'
+                      materialType: materialType,
+                      materialId: item.materialId
                     });
                   }}
                 >
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.cell}>{formatMaterialTypeLabel(item.label)}</Text>
+                    <Text style={styles.cell}>
+                      {item.materialId} - {formatMaterialTypeLabel(item.materialType)}
+                    </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#666" />
                 </TouchableOpacity>

@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomePage from './screens/HomePage';
 import ProjectPage from './screens/ProjectPage';
 import StudyAreaPage from './screens/StudyAreaPage';
-import StratUnitPage from './screens/StratUnitPage';
+// import StratUnitPage from './screens/StratUnitPage';
 import MaterialContainerPage from './screens/MaterialContainerPage';
 import MaterialEditPage from './screens/MaterialEditPage';
 import MaterialGroupPage from './screens/MaterialGroupPage';
@@ -33,6 +33,7 @@ export type RootStackParamList = {
     containerId: string;
     groupId: string;
     materialType: 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp';
+    materialId?: string;
   };
   MaterialEdit: {
     projectId: string;
@@ -40,6 +41,7 @@ export type RootStackParamList = {
     suId: string;
     containerId: string;
     groupId: string;
+    materialId?: string;
     initialSherds: Array<{
       sherd_id: string;
       weight: number;
@@ -61,7 +63,7 @@ export default function App() {
         <Stack.Screen name="Home" component={HomePage} />
         <Stack.Screen name="Project" component={ProjectPage} />
         <Stack.Screen name="StudyArea" component={StudyAreaPage} />
-        <Stack.Screen name="StratUnit" component={StratUnitPage} />
+        {/* <Stack.Screen name="StratUnit" component={StratUnitPage} /> */}
         <Stack.Screen name="MaterialContainer" component={MaterialContainerPage} />
         <Stack.Screen name="MaterialGroup" component={MaterialGroupPage} />
         <Stack.Screen name="MaterialEdit" component={MaterialEditPage} />

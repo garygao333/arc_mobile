@@ -14,13 +14,35 @@ import {
 import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
+
+// Format material type for display
+const formatMaterialTypeLabel = (type: string): string => {
+  const mapping: Record<string, string> = {
+    'fine-ware': 'Fine Ware',
+    'coarse-ware': 'Coarse Ware',
+    'cooking-ware': 'Cooking Ware',
+    'amphora': 'Amphora',
+    'lamp': 'Lamp'
+  };
+  return mapping[type] || type;
+};
 import { db } from '../firebaseConfig';
-import { collection, getDocs, addDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, doc, updateDoc, increment, getDoc, setDoc } from 'firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { UniversalSherdDatabase } from '../utils/universalDatabase';
 
-export default function MaterialGroupPage({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'MaterialGroup'>) {
+type MaterialGroupRouteParams = {
+  projectId: string;
+  studyAreaId: string;
+  suId: string;
+  containerId: string;
+  groupId: string;
+  materialType: 'fine-ware' | 'coarse-ware' | 'cooking-ware' | 'amphora' | 'lamp';
+  materialId?: string;
+};
+
+export default function MaterialGroupPage({ route, navigation }: { route: { params: MaterialGroupRouteParams }, navigation: any }) {
   const [objectGroups, setObjectGroups] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [diagnosticType, setDiagnosticType] = useState('rim');
@@ -28,8 +50,9 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
   
-  // Get material type from route params and set default qualification type
+  // Get material type and ID from route params and set default qualification type
   const materialType = route.params.materialType || 'fine-ware';
+  const materialId = route.params.materialId || '';
   
   // Set default qualification type based on material type
   React.useEffect(() => {
@@ -62,71 +85,210 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
 
   const fetchObjectGroups = async () => {
     try {
-      const q = query(collection(
+      console.log('Fetching object groups for material group:', route.params.groupId);
+      const objectsRef = collection(
         db,
         'projects', route.params.projectId,
         'studyAreas', route.params.studyAreaId,
         'stratUnits', route.params.suId,
-        'containers', route.params.containerId,
-        'groups', route.params.groupId,
+        'materialGroups', route.params.groupId,
         'objects'
-      ), orderBy('diagnostic'));
-      const querySnapshot = await getDocs(q);
-      const objects = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      );
+      
+      // First, try without ordering to verify we can get any data
+      const querySnapshot = await getDocs(objectsRef);
+      console.log('Found', querySnapshot.size, 'objects');
+      
+      // Log the first document to see its structure
+      if (querySnapshot.size > 0) {
+        console.log('First object data:', querySnapshot.docs[0].data());
+      }
+      
+      const objects = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Make sure we have all required fields with defaults
+        diagnosticType: doc.data().diagnosticType || 'unknown',
+        qualificationType: doc.data().qualificationType || 'unknown',
+        weight: doc.data().weight || 0,
+        createdAt: doc.data().createdAt || new Date().toISOString()
+      }));
+      
+      console.log('Processed objects:', objects);
       setObjectGroups(objects);
     } catch (error) {
       console.error('Error fetching object groups:', error);
+      Alert.alert('Error', 'Failed to load objects. Please try again.');
+      Alert.alert('Error', 'Failed to load object groups');
     }
   };
 
   const handleAddObject = async () => {
+    console.log('Starting handleAddObject');
+    if (!weight || isNaN(parseFloat(weight)) || !count || isNaN(parseInt(count, 10))) {
+      const errorMsg = 'Please enter valid weight and count values';
+      console.error(errorMsg, { weight, count });
+      Alert.alert('Error', errorMsg);
+      return;
+    }
+
+    const weightValue = parseFloat(weight);
+    const countValue = parseInt(count, 10);
+    const now = new Date();
+
     try {
+      // First, ensure the material group exists
+      // Create the document reference using nested collection() and doc() calls
+      const groupRef = doc(
+        collection(
+          doc(
+            collection(
+              doc(
+                collection(
+                  doc(
+                    collection(db, 'projects'),
+                    route.params.projectId
+                  ),
+                  'studyAreas'
+                ),
+                route.params.studyAreaId
+              ),
+              'stratUnits'
+            ),
+            route.params.suId
+          ),
+          'materialGroups'
+        ),
+        route.params.groupId
+      );
+      
+      console.log('Group ref created:', groupRef.path);
+
+      // Try to get the group to check if it exists
+      let groupExists = false;
+      try {
+        console.log('Checking if group exists...');
+        const groupDoc = await getDoc(groupRef);
+        groupExists = groupDoc.exists();
+        console.log('Group exists check result:', groupExists);
+      } catch (error) {
+        console.error('Error checking if group exists:', error);
+        groupExists = false;
+      }
+
+      // If group doesn't exist, create it with initial values
+      if (!groupExists) {
+        console.log('Creating new material group with ID:', route.params.groupId);
+        const groupData = {
+          materialId: route.params.materialId || '',
+          materialType: route.params.materialType,
+          totalWeight: 0,
+          sherdCount: 0,
+          createdAt: now,
+          updatedAt: now
+        };
+        console.log('Group data:', groupData);
+        
+        try {
+          console.log('Attempting to create document at path:', groupRef.path);
+          await setDoc(groupRef, groupData);
+          console.log('Successfully created material group');
+          
+          // Verify the document was created
+          const docSnap = await getDoc(groupRef);
+          if (!docSnap.exists()) {
+            throw new Error('Failed to verify document creation - document does not exist after creation');
+          }
+          console.log('Verified document exists after creation');
+          
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('Error creating material group:', errorMessage);
+          console.error('Full error object:', error);
+          throw new Error(`Failed to create material group: ${errorMessage}`);
+        }
+      } else {
+        console.log('Material group already exists, skipping creation');
+      }
+
+      // Add the new object
       await addDoc(collection(
         db,
         'projects', route.params.projectId,
         'studyAreas', route.params.studyAreaId,
         'stratUnits', route.params.suId,
-        'containers', route.params.containerId,
-        'groups', route.params.groupId,
+        'materialGroups', route.params.groupId,
         'objects'
       ), {
         diagnostic: diagnosticType,
         qualification: qualificationType,
-        weight: parseFloat(weight),
-        count: parseInt(count, 10)
+        weight: weightValue,
+        count: countValue,
+        createdAt: now
       });
 
+      // Update the material group's sherd count and total weight
       try {
         const projectCode = route.params.projectId.toUpperCase();
         
-        await UniversalSherdDatabase.addManualSherd(
-          {
-            diagnosticType: diagnosticType,
-            qualificationType: qualificationType,
-            weight: parseFloat(weight),
-            count: parseInt(count, 10),
-          },
-          {
-            projectId: projectCode,
+        // Update the group with new sherd count and total weight
+        const updateData = {
+          sherdCount: increment(countValue),
+          totalWeight: increment(weightValue),
+          updatedAt: now
+        };
+        
+        console.log('Attempting to update material group with data:', updateData);
+        console.log('Update path:', groupRef.path);
+        
+        try {
+          await updateDoc(groupRef, updateData);
+          console.log('Successfully updated material group');
+          
+          // Verify the update
+          const updatedDoc = await getDoc(groupRef);
+          console.log('Updated document data:', updatedDoc.data());
+        } catch (updateError) {
+          console.error('Update error details:', {
+            error: updateError,
+            path: groupRef.path,
+            updateData: updateData
+          });
+          throw new Error(`Failed to update material group: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`);
+        }
+        
+        // Update UniversalSherdDatabase
+        try {
+          await UniversalSherdDatabase.addSherd({
+            sherdId: '', // Will be generated by the database
+            projectId: route.params.projectId,
             studyAreaId: route.params.studyAreaId,
             stratUnitId: route.params.suId,
             containerId: route.params.containerId,
             objectGroupId: route.params.groupId,
-          }
-        );
-
-        console.log('Successfully saved to universal database');
-      } catch (universalError) {
-        console.error('Error saving to universal database:', universalError);
+            diagnosticType: diagnosticType,
+            qualificationType: qualificationType,
+            weight: weightValue,
+            boundingBox: { x: 0, y: 0, width: 0, height: 0 } // Default values
+          });
+        } catch (dbError) {
+          console.error('Error updating universal sherd database:', dbError);
+          // Don't fail the operation if this fails
+        }
+        
+        // Refresh the list and reset form
+        fetchObjectGroups();
+        setModalVisible(false);
+        setDiagnosticType('rim');
+        setWeight('');
+        setCount('');
+      } catch (updateError) {
+        console.error('Error updating material group:', updateError);
+        // Even if the update fails, we can still proceed
       }
-
-      setModalVisible(false);
-      fetchObjectGroups();
-      setWeight('');
-      setCount('');
     } catch (error) {
       console.error('Error adding object:', error);
-      Alert.alert("Error", "Failed to add object");
+      Alert.alert('Error', 'Failed to add object');
     }
   };
 
@@ -140,20 +302,20 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
       {/* Group Info */}
       <View style={styles.projectInfo}>
         <Text style={styles.projectName}>
-          {route.params.materialType === 'fine-ware' ? 'Fine Ware' : 'Coarse Ware'}
+          {materialId ? `${materialId} - ` : ''}{formatMaterialTypeLabel(materialType)}
         </Text>
         {objectGroups.length > 0 && (
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Ionicons name="cube-outline" size={20} color="#2D0C57" />
               <Text style={styles.statText}>
-                {objectGroups.reduce((sum, item) => sum + item.count, 0)} objects
+                {objectGroups.length} objects
               </Text>
             </View>
             <View style={styles.statItem}>
               <Ionicons name="scale-outline" size={20} color="#2D0C57" />
               <Text style={styles.statText}>
-                {objectGroups.reduce((sum, item) => sum + item.weight, 0).toFixed(2)}g
+                {objectGroups.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0).toFixed(2)}g
               </Text>
             </View>
           </View>
@@ -203,16 +365,16 @@ export default function MaterialGroupPage({ route, navigation }: NativeStackScre
                   ]}
                 >
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.cell}>{item.diagnostic}</Text>
+                    <Text style={styles.cell}>{item.diagnosticType || 'N/A'}</Text>
                   </View>
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.cell}>{item.qualification}</Text>
+                    <Text style={styles.cell}>{item.qualificationType || 'N/A'}</Text>
                   </View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={styles.cell}>{item.count}</Text>
+                    <Text style={styles.cell}>{item.count || '1'}</Text>
                   </View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={styles.cell}>{item.weight}g</Text>
+                    <Text style={styles.cell}>{item.weight ? `${item.weight}g` : '0g'}</Text>
                   </View>
                 </View>
               ))

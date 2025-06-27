@@ -203,17 +203,14 @@ export default function StudyAreaPage({ route, navigation }: Props) {
           {/* Table Header */}
           <View style={styles.tableHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerCell}>SUs</Text>
+              <Text style={styles.headerCell}>ID</Text>
             </View>
             <View style={{ flex: 2 }}>
               <Text style={styles.headerCell}>Typology</Text>
             </View>
-            <View style={{ flex: 2 }}>
-              <Text style={styles.headerCell}>Label</Text>
-            </View>
-            <View style={{ width: 24 }} /> {/* Spacer for the chevron */}
+            <View style={{ width: 24 }} />
           </View>
-          
+
           {/* Table Rows */}
           <ScrollView style={styles.tableBody}>
             {stratUnits.map((unit, index) => (
@@ -223,78 +220,84 @@ export default function StudyAreaPage({ route, navigation }: Props) {
                   styles.tableRow,
                   { backgroundColor: index % 2 === 0 ? '#FFF' : '#F8F9FA' }
                 ]}
-                onPress={() => navigation.navigate('StratUnit', { 
-                  suId: unit.id, 
-                  projectId: projectId, 
-                  studyAreaId: studyAreaId,
-                  typology: unit.typology,
-                  label: unit.label
-                })}
+                onPress={() => {
+                  // Navigate to MaterialContainerPage with the strat unit's ID as containerId
+                  navigation.navigate('MaterialContainer', {
+                    projectId,
+                    studyAreaId,
+                    suId: unit.id,
+                    containerId: unit.id // Using strat unit ID as container ID for now
+                  });
+                }}
               >
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, justifyContent: 'center' }}>
                   <Text style={styles.cell}>{unit.id}</Text>
                 </View>
-                <View style={{ flex: 2 }}>
-                  <Text style={styles.cell}>{unit.typology}</Text>
-                </View>
-                <View style={{ flex: 2 }}>
-                  <Text style={styles.cell}>{unit.label}</Text>
+                <View style={{ flex: 2, justifyContent: 'center' }}>
+                  <Text style={styles.cell}>
+                    {unit.typology} {unit.label ? `(${unit.label})` : ''}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#666" />
               </TouchableOpacity>
             ))}
+            {stratUnits.length === 0 && (
+              <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#666', fontSize: 16 }}>No stratigraphic units found</Text>
+              </View>
+            )}
           </ScrollView>
         </View>
-      </View>
 
-      {/* Add Strat Unit Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Strat Unit</Text>
-            <TextInput
-              style={[styles.modalInput, { marginBottom: 16 }]}
-              placeholder="Enter typology (required)"
-              value={typologyInput}
-              onChangeText={setTypologyInput}
-              placeholderTextColor="#999"
-            />
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Enter label (optional)"
-              value={labelInput}
-              onChangeText={setLabelInput}
-              placeholderTextColor="#999"
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => {
-                  setModalVisible(false);
-                  setTypologyInput('');
-                  setLabelInput('');
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.createButton]} 
-                onPress={handleAddStratUnit}
-                disabled={!typologyInput.trim()}
-              >
-                <Text style={[styles.createButtonText, !typologyInput.trim() && { opacity: 0.5 }]}>
-                  Create
-                </Text>
-              </TouchableOpacity>
+        {/* Add Strat Unit Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Add Strat Unit</Text>
+              <TextInput
+                style={[styles.modalInput, { marginBottom: 16 }]}
+                placeholder="Enter typology (required)"
+                value={typologyInput}
+                onChangeText={setTypologyInput}
+                placeholderTextColor="#999"
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter label (optional)"
+                value={labelInput}
+                onChangeText={setLabelInput}
+                placeholderTextColor="#999"
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.cancelButton]} 
+                  onPress={() => {
+                    setModalVisible(false);
+                    setTypologyInput('');
+                    setLabelInput('');
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.createButton]} 
+                  onPress={handleAddStratUnit}
+                  disabled={!typologyInput.trim()}
+                >
+                  <Text style={[styles.createButtonText, !typologyInput.trim() && { opacity: 0.5 }]}>
+                    Create
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      </View>
     </SafeAreaView>
   );
 }
@@ -391,14 +394,13 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#E0E0E0',
+    alignItems: 'center',
   },
   cell: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
   },
   // Modal styles

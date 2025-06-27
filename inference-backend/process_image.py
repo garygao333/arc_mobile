@@ -10,7 +10,7 @@ API_KEY = os.getenv("API_KEY")
 WORKSPACE = os.getenv("WORKSPACE")
 WORKFLOW_ID_FINE = os.getenv("WORKFLOW_ID_FINE")
 WORKFLOW_ID_COARSE = os.getenv("WORKFLOW_ID_COARSE")
-SERVERLESS_URL = os.getenv("SERVERLESS_URL")
+SERVERLESS_URL = 'https://serverless.roboflow.com'
 
 def process_image(image_path: str, total_weight: float = 100, material_type: str = "fine-ware"):
     """

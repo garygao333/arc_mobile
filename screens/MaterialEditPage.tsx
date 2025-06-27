@@ -16,7 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../App';
 import { db } from '../firebaseConfig';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { UniversalSherdDatabase, type UniversalSherdData } from '../utils/universalDatabase';
 
 type Sherd = {
@@ -68,8 +68,23 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
     ? coarseWareQualificationTypes 
     : fineWareQualificationTypes;
   
-  const [sherds, setSherds] = useState<Sherd[]>(initialSherds);
+  const [sherds, setSherds] = useState<Sherd[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Initialize sherds from initialSherds on first render
+  React.useEffect(() => {
+    if (!hasInitialized && initialSherds && initialSherds.length > 0) {
+      console.log('Initializing sherds from initialSherds:', initialSherds);
+      setSherds(initialSherds);
+      setHasInitialized(true);
+    }
+  }, [initialSherds, hasInitialized]);
+
+  // Debug log when sherds change
+  React.useEffect(() => {
+    console.log('Current sherds state:', sherds);
+  }, [sherds]);
 
   const updateSherd = (index: number, field: keyof Sherd, value: any) => {
     const updatedSherds = [...sherds];
@@ -78,51 +93,128 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleConfirm = async () => {
+    console.log('Starting to save sherds:', sherds);
+    if (!sherds || sherds.length === 0) {
+      console.warn('No sherds to save');
+      Alert.alert('No Sherds', 'There are no sherds to save.');
+      return;
+    }
+    
     setIsProcessing(true);
+    
     try {
-      // Save to Firestore
-      await addDoc(
-        collection(
-          db,
-          'projects', projectId,
-          'studyAreas', studyAreaId,
-          'stratUnits', suId,
-          'containers', containerId,
-          'groups', groupId,
-          'sherds'
-        ),
-        {
-          sherds,
-          timestamp: new Date(),
-        }
-      );
-
-      // Save each sherd to the universal database
-      await Promise.all(sherds.map(sherd => {
-        const sherdData: Omit<UniversalSherdData, 'createdAt'> = {
-          sherdId: sherd.sherd_id,
+      console.log(`Attempting to save ${sherds.length} sherds to group ${groupId}`);
+      console.log('Project ID:', projectId);
+      console.log('Study Area ID:', studyAreaId);
+      console.log('SU ID:', suId);
+      console.log('Container ID:', containerId);
+      // Calculate total weight and count
+      const totalWeight = sherds.reduce((sum, sherd) => sum + (sherd.weight || 0), 0);
+      const sherdCount = sherds.length;
+      
+      // Save sherds to the material group
+      const batch = [];
+      
+      // Add each sherd to the batch
+      for (const [index, sherd] of sherds.entries()) {
+        console.log(`Processing sherd ${index + 1}/${sherds.length}`, sherd);
+        
+        // Prepare Firestore-compatible sherd data
+        const now = new Date().toISOString();
+        const sherdData: Record<string, any> = {
+          sherdId: sherd.sherd_id || '',
           projectId,
           studyAreaId,
           stratUnitId: suId,
           containerId,
           objectGroupId: groupId,
-          diagnosticType: sherd.type_prediction,
-          qualificationType: sherd.qualification_prediction,
-          weight: sherd.weight || 0,
-          analysisConfidence: sherd.confidence,
-          boundingBox: {
-            x: sherd.x || 0,
-            y: sherd.y || 0,
-            width: sherd.width || 0,
-            height: sherd.height || 0
-          },
-          originalImageUrl: annotatedImage ? `data:image/jpeg;base64,${annotatedImage}` : undefined
+          diagnosticType: sherd.type_prediction || 'unknown',
+          qualificationType: sherd.qualification_prediction || 'unknown',
+          weight: Number(sherd.weight) || 0,
+          // Convert bounding box to a flat structure for Firestore
+          boundingBoxX: Number(sherd.x) || 0,
+          boundingBoxY: Number(sherd.y) || 0,
+          boundingBoxWidth: Number(sherd.width) || 0,
+          boundingBoxHeight: Number(sherd.height) || 0,
+          createdAt: now,
+          updatedAt: now
         };
-        return UniversalSherdDatabase.addSherd(sherdData);
-      }));
+        
+        // Only add analysisConfidence if it exists and is a number
+        if (typeof sherd.confidence === 'number' && !isNaN(sherd.confidence)) {
+          sherdData.analysisConfidence = Number(sherd.confidence);
+        }
+        
+        // Only add originalImageUrl if it exists
+        if (annotatedImage) {
+          sherdData.originalImageUrl = `data:image/jpeg;base64,${annotatedImage}`;
+        }
+        
+        try {
+          // Add to Firestore
+          console.log('Adding sherd to Firestore:', sherdData);
+          const sherdRef = await addDoc(
+            collection(
+              db,
+              'projects', projectId,
+              'studyAreas', studyAreaId,
+              'stratUnits', suId,
+              'materialGroups', groupId,
+              'objects'
+            ),
+            sherdData
+          );
+          console.log('Successfully added sherd to Firestore with ID:', sherdRef.id);
+          
+          // Add to Universal Database with proper bounding box structure
+          const universalSherdData: Omit<UniversalSherdData, 'createdAt'> = {
+            sherdId: sherdData.sherdId,
+            projectId: sherdData.projectId,
+            studyAreaId: sherdData.studyAreaId,
+            stratUnitId: sherdData.stratUnitId,
+            containerId: sherdData.containerId,
+            objectGroupId: sherdData.objectGroupId,
+            diagnosticType: sherdData.diagnosticType,
+            qualificationType: sherdData.qualificationType,
+            weight: sherdData.weight,
+            analysisConfidence: sherdData.analysisConfidence,
+            boundingBox: {
+              x: sherdData.boundingBoxX,
+              y: sherdData.boundingBoxY,
+              width: sherdData.boundingBoxWidth,
+              height: sherdData.boundingBoxHeight
+            },
+            originalImageUrl: sherdData.originalImageUrl,
+            notes: '' // Add empty notes field as it's optional in the interface
+          };
+          await UniversalSherdDatabase.addSherd(universalSherdData);
+        } catch (sherdError) {
+          console.error(`Error saving sherd ${index + 1}:`, sherdError);
+          throw new Error(`Failed to save sherd ${index + 1}: ${sherdError}`);
+        }
+      }
+      
+      // Update the material group with atomic increments
+      const groupRef = doc(
+        db,
+        'projects', projectId,
+        'studyAreas', studyAreaId,
+        'stratUnits', suId,
+        'materialGroups', groupId
+      );
+      
+      // Use Firestore's increment for atomic updates
+      await updateDoc(groupRef, {
+        totalWeight: increment(totalWeight),
+        sherdCount: increment(sherds.length),
+        updatedAt: new Date().toISOString()
+      });
 
+      console.log('Successfully saved sherds to Firestore and Universal DB');
+      
       // Navigate back
       if (fromImage) {
+        console.log('Navigating back to MaterialContainer');
         navigation.navigate('MaterialContainer', {
           projectId,
           studyAreaId,
@@ -130,6 +222,7 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
           containerId,
         });
       } else {
+        console.log('Navigating back to previous screen');
         navigation.goBack();
       }
     } catch (error) {
@@ -143,9 +236,29 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        {isProcessing && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Saving sherds...</Text>
+          </View>
+        )}
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerLogo}>ARC</Text>
+          <View style={styles.headerRight}>
+            {/* <Text style={styles.sherdCount}>{sherds.length} sherds</Text> */}
+            {/* <TouchableOpacity 
+              style={styles.saveButton}
+              onPress={handleConfirm}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity> */}
+          </View>
         </View>
 
         <ScrollView 
@@ -272,6 +385,29 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sherdCount: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 10,
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
@@ -425,9 +561,21 @@ const styles = StyleSheet.create({
   buttonGroup: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
+    marginTop: 20,
     gap: 10
-  }
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
+  },
 });
 
 export default MaterialEditPage;

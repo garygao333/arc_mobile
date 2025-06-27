@@ -346,7 +346,7 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerLogo}>ARC</Text>
+        <Text style={styles.headerLogo}>ARCS</Text>
       </View>
 
       {/* Group Info */}
@@ -497,7 +497,7 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
               <Text style={styles.inputLabel}>Weight (grams)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter weight in grams"
+                placeholder="Weight"
                 keyboardType="decimal-pad"
                 value={weight}
                 onChangeText={setWeight}
@@ -508,7 +508,7 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
               <Text style={styles.inputLabel}>Count</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter number of objects"
+                placeholder="Count"
                 keyboardType="number-pad"
                 value={count}
                 onChangeText={setCount}

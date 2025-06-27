@@ -63,6 +63,13 @@ const SERVER_URL = getServerUrl();
 type Props = NativeStackScreenProps<RootStackParamList, 'MaterialContainer'>;
 
 export default function MaterialContainerPage({ route, navigation }: Props) {
+  // Set the navigation title
+  React.useEffect(() => {
+    navigation.setOptions({
+      title: 'Stratigraphic Unit'
+    });
+  }, [navigation]);
+
   const [groups, setGroups] = useState<any[]>([]);
   
   // Modal states
@@ -488,7 +495,7 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerLogo}>ARC</Text>
+        <Text style={styles.headerLogo}>ARCS</Text>
       </View>
 
       {/* Container Info */}

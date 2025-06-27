@@ -83,7 +83,7 @@ export default function HomePage({ navigation }: Props) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerLogo}>ARC</Text>
+        <Text style={styles.headerLogo}>ARCS</Text>
       </View>
 
       {/* Content */}

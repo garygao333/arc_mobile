@@ -199,7 +199,7 @@ export default function StudyAreaPage({ route, navigation }: Props) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerLogo}>ARC</Text>
+        <Text style={styles.headerLogo}>ARCS</Text>
       </View>
 
       {/* Study Area Info */}
@@ -431,30 +431,31 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F8F9FA',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E9ECEF',
   },
   headerCell: {
-    fontWeight: '600',
-    color: '#444',
     fontSize: 14,
+    fontWeight: '600',
+    color: '#495057',
   },
   tableBody: {
     flex: 1,
   },
   tableRow: {
     flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
   },
   cell: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: 14,
+    color: '#212529',
   },
   // Modal styles
   modalOverlay: {

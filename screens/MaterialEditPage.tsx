@@ -244,7 +244,7 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
         )}
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerLogo}>ARC</Text>
+          <Text style={styles.headerLogo}>ARCS</Text>
           <View style={styles.headerRight}>
             {/* <Text style={styles.sherdCount}>{sherds.length} sherds</Text> */}
             {/* <TouchableOpacity 

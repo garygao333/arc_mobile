@@ -24,7 +24,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.garygao.arcsapp",
-      "buildNumber": "15",
+      "buildNumber": "17",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to document archaeological materials for research and cataloging.",
         "NSPhotoLibraryUsageDescription": "The app needs access to your photo library to select images."

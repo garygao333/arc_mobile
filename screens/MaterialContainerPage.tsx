@@ -748,9 +748,35 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                 placeholder="Enter total weight"
                 value={totalWeight}
                 onChangeText={setTotalWeight}
-                keyboardType="decimal-pad"
+                keyboardType="numbers-and-punctuation"
                 returnKeyType="done"
+                inputAccessoryViewID="weightDoneAccessory"
+                style={styles.input}
               />
+              {Platform.OS === 'ios' && (
+                <InputAccessoryView nativeID="weightDoneAccessory">
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    justifyContent: 'flex-end',
+                    backgroundColor: '#f8f8f8',
+                    borderTopWidth: 1,
+                    borderTopColor: '#e0e0e0',
+                    padding: 8
+                  }}>
+                    <TouchableOpacity 
+                      onPress={() => Keyboard.dismiss()}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderRadius: 4,
+                        backgroundColor: '#007AFF',
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '600' }}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                </InputAccessoryView>
+              )}
             </View>
             
             <View style={styles.imageContainer}>

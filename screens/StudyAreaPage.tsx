@@ -202,13 +202,18 @@ export default function StudyAreaPage({ route, navigation }: Props) {
         <View style={styles.tableContainer}>
           {/* Table Header */}
           <View style={styles.tableHeader}>
-            <View style={{ flex: 1 }}>
+            <View style={{ width: 80, marginRight: 15 }}>
               <Text style={styles.headerCell}>ID</Text>
             </View>
-            <View style={{ flex: 2 }}>
+            <View style={{ flex: 3, marginRight: 15 }}>
               <Text style={styles.headerCell}>Typology</Text>
             </View>
-            <View style={{ width: 24 }} />
+            <View style={{ flex: 3, marginRight: 15 }}>
+              <Text style={styles.headerCell}>Short description</Text>
+            </View>
+            <View style={{ width: 30, alignItems: 'flex-end' }}>
+              <Ionicons name="chevron-forward" size={18} color="#666" />
+            </View>
           </View>
 
           {/* Table Rows */}
@@ -230,15 +235,22 @@ export default function StudyAreaPage({ route, navigation }: Props) {
                   });
                 }}
               >
-                <View style={{ flex: 1, justifyContent: 'center' }}>
-                  <Text style={styles.cell}>{unit.id}</Text>
+                <View style={{ width: 80, justifyContent: 'center', marginRight: 15 }}>
+                  <Text style={[styles.cell, { fontWeight: '500' }]}>{unit.id}</Text>
                 </View>
-                <View style={{ flex: 2, justifyContent: 'center' }}>
-                  <Text style={styles.cell}>
-                    {unit.typology} {unit.label ? `(${unit.label})` : ''}
+                <View style={{ flex: 3, justifyContent: 'center', marginRight: 15 }}>
+                  <Text style={styles.cell} numberOfLines={2} ellipsizeMode="tail">
+                    {unit.typology || '—'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
+                <View style={{ flex: 3, justifyContent: 'center', marginRight: 15 }}>
+                  <Text style={[styles.cell, { color: unit.label ? '#000' : '#999' }]} numberOfLines={2} ellipsizeMode="tail">
+                    {unit.label || '—'}
+                  </Text>
+                </View>
+                <View style={{ width: 30, alignItems: 'flex-end' }}>
+                  <Ionicons name="chevron-forward" size={18} color="#999" />
+                </View>
               </TouchableOpacity>
             ))}
             {stratUnits.length === 0 && (
@@ -258,17 +270,17 @@ export default function StudyAreaPage({ route, navigation }: Props) {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Add Strat Unit</Text>
+              <Text style={styles.modalTitle}>Add Stratigraphic Unit</Text>
               <TextInput
                 style={[styles.modalInput, { marginBottom: 16 }]}
-                placeholder="Enter typology (required)"
+                placeholder="Typology"
                 value={typologyInput}
                 onChangeText={setTypologyInput}
                 placeholderTextColor="#999"
               />
               <TextInput
                 style={styles.modalInput}
-                placeholder="Enter label (optional)"
+                placeholder="Short description"
                 value={labelInput}
                 onChangeText={setLabelInput}
                 placeholderTextColor="#999"

@@ -126,7 +126,7 @@ export default function ProjectPage({ route, navigation }: Props) {
               <Text style={styles.headerCell}>Study Area</Text>
             </View>
             <View style={{ flex: 2 }}>
-              <Text style={styles.headerCell}>Label</Text>
+              <Text style={styles.headerCell}>Short description</Text>
             </View>
             <View style={{ width: 24 }} /> {/* Spacer for the chevron */}
           </View>
@@ -164,7 +164,7 @@ export default function ProjectPage({ route, navigation }: Props) {
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>Add Study Area</Text>
             <TextInput
-              placeholder="Label"
+              placeholder="Short description"
               value={labelInput}
               onChangeText={setLabelInput}
               style={styles.input}

@@ -26,6 +26,56 @@ const formatMaterialTypeLabel = (type: string): string => {
   };
   return mapping[type] || type;
 };
+
+// Format part type to display with consistent capitalization
+const formatPartTypeLabel = (value: string): string => {
+  const partTypeMapping: Record<string, string> = {
+    'body': 'Body',
+    'Body': 'Body',
+    'rim': 'Rim',
+    'Rim': 'Rim',
+    'base': 'Base',
+    'Base': 'Base',
+    'foot': 'Foot',
+    'Foot': 'Foot',
+    'handle': 'Handle',
+    'Handle': 'Handle',
+    'spout': 'Spout',
+    'Spout': 'Spout',
+    'lamp': 'Lamp',
+    'Lamp': 'Lamp'
+  };
+  return partTypeMapping[value] || value;
+};
+
+// Format qualification value to display label
+const formatQualificationLabel = (value: string, materialType: string): string => {
+  const coarseWareMapping: Record<string, string> = {
+    'Unidentified': 'Unidentified',
+    'Punic': 'Punic',
+    'unidentified': 'Unidentified',
+    'punic': 'Punic'
+  };
+  
+  const fineWareMapping: Record<string, string> = {
+    'ITS': 'ITS',
+    'its': 'ITS',
+    'African sigillata': 'African sigillata',
+    'african': 'African sigillata',
+    'Black gloss': 'Black gloss',
+    'black_gloss': 'Black gloss',
+    'Sardinian black gloss': 'Sardinian black gloss',
+    'sardinian': 'Sardinian black gloss',
+    'Thin wall': 'Thin wall',
+    'thin_wall': 'Thin wall'
+  };
+  
+  if (materialType === 'coarse-ware') {
+    return coarseWareMapping[value] || value;
+  } else {
+    return fineWareMapping[value] || value;
+  }
+};
 import { db } from '../firebaseConfig';
 import { collection, getDocs, addDoc, query, orderBy, doc, updateDoc, increment, getDoc, setDoc } from 'firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
@@ -57,24 +107,24 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
   // Set default qualification type based on material type
   React.useEffect(() => {
     if (materialType === 'coarse-ware') {
-      setQualificationType('unidentified');
+      setQualificationType('Unidentified');
     } else {
-      setQualificationType('its');
+      setQualificationType('ITS');
     }
   }, [materialType]);
   
   // Qualification type options based on material type
   const qualificationOptions = materialType === 'coarse-ware' 
     ? [
-        { label: 'Unidentified', value: 'unidentified' },
-        { label: 'Punic', value: 'punic' }
+        { label: 'unidentified', value: 'Unidentified' },
+        { label: 'punic', value: 'Punic' }
       ]
     : [
-        { label: 'ITS', value: 'its' },
-        { label: 'African', value: 'african' },
-        { label: 'Black Gloss', value: 'black_gloss' },
-        { label: 'Sardinian', value: 'sardinian' },
-        { label: 'Thin Wall', value: 'thin_wall' }
+        { label: 'its', value: 'ITS' },
+        { label: 'african', value: 'African sigillata' },
+        { label: 'black_gloss', value: 'Black gloss' },
+        { label: 'sardinian', value: 'Sardinian black gloss' },
+        { label: 'thin_wall', value: 'Thin wall' }
       ];
 
   useFocusEffect(
@@ -365,10 +415,12 @@ export default function MaterialGroupPage({ route, navigation }: { route: { para
                   ]}
                 >
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.cell}>{item.diagnosticType || 'N/A'}</Text>
+                    <Text style={styles.cell}>{formatPartTypeLabel(item.diagnosticType) || 'N/A'}</Text>
                   </View>
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.cell}>{item.qualificationType || 'N/A'}</Text>
+                    <Text style={styles.cell}>
+                      {formatQualificationLabel(item.qualificationType, materialType) || 'N/A'}
+                    </Text>
                   </View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
                     <Text style={styles.cell}>{item.count || '1'}</Text>

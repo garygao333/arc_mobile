@@ -451,10 +451,15 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
         <View style={styles.tableContainer}>
           {/* Table Header */}
           <View style={styles.tableHeader}>
-            <View style={{ flex: 2 }}>
-              <Text style={styles.headerCell}>ID - Type</Text>
+            <View style={{ width: 100, marginRight: 15 }}>
+              <Text style={styles.headerCell}>Material ID</Text>
             </View>
-            <View style={{ width: 24 }} />
+            <View style={{ flex: 1, marginRight: 15 }}>
+              <Text style={styles.headerCell}>Type</Text>
+            </View>
+            <View style={{ width: 30, alignItems: 'flex-end' }}>
+              <Ionicons name="chevron-forward" size={18} color="#666" />
+            </View>
           </View>
           
           {/* Table Rows */}
@@ -489,12 +494,17 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                     });
                   }}
                 >
-                  <View style={{ flex: 2 }}>
+                  <View style={{ width: 100, justifyContent: 'center', marginRight: 15 }}>
+                    <Text style={[styles.cell, { fontWeight: '500' }]}>{item.materialId}</Text>
+                  </View>
+                  <View style={{ flex: 1, justifyContent: 'center', marginRight: 15 }}>
                     <Text style={styles.cell}>
-                      {item.materialId} - {formatMaterialTypeLabel(item.materialType)}
+                      {formatMaterialTypeLabel(item.materialType)}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                  <View style={{ width: 30, alignItems: 'flex-end' }}>
+                    <Ionicons name="chevron-forward" size={18} color="#999" />
+                  </View>
                 </TouchableOpacity>
               ))
             ) : (

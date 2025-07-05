@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import NumberInput from '../components/NumberInput';
 import { Picker } from '@react-native-picker/picker';
+import {Dropdown} from 'react-native-element-dropdown';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../App';
@@ -34,7 +35,12 @@ type Sherd = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MaterialEdit'>;
 
-const diagnosticTypes = ['rim', 'base', 'body', 'foot'] as const;
+const diagnosticTypes = [
+  { label: 'Rim', value: 'rim' },
+  { label: 'Base', value: 'base' },
+  { label: 'Body', value: 'body' },
+  { label: 'Foot', value: 'foot' }
+]
 
 // Qualification types for fine and coarse ware
 const fineWareQualificationTypes = [
@@ -132,6 +138,7 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
           qualificationType: sherd.qualification_prediction || 'unknown',
           weight: Number(sherd.weight) || 0,
           // Convert bounding box to a flat structure for Firestore
+          //THIS IS NOT THE RIGHT DATA - FIX THIS. 
           boundingBoxX: Number(sherd.x) || 0,
           boundingBoxY: Number(sherd.y) || 0,
           boundingBoxWidth: Number(sherd.width) || 0,
@@ -213,18 +220,19 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
       console.log('Successfully saved sherds to Firestore and Universal DB');
       
       // Navigate back
-      if (fromImage) {
-        console.log('Navigating back to MaterialContainer');
-        navigation.navigate('MaterialContainer', {
-          projectId,
-          studyAreaId,
-          suId,
-          containerId,
-        });
-      } else {
-        console.log('Navigating back to previous screen');
-        navigation.goBack();
-      }
+      navigation.goBack();
+      // if (fromImage) {
+      //   console.log('Navigating back to MaterialContainer');
+      //   navigation.navigate('MaterialContainer', {
+      //     projectId,
+      //     studyAreaId,
+      //     suId,
+      //     containerId,
+      //   });
+      // } else {
+      //   console.log('Navigating back to previous screen');
+      //   navigation.goBack();
+      // }
     } catch (error) {
       console.error('Error saving sherds:', error);
       Alert.alert('Error', 'Failed to save sherds. Please try again.');
@@ -261,11 +269,6 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
           </View>
         </View>
 
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-          showsVerticalScrollIndicator={false}
-        >
         {/* Image */}
         {annotatedImage && (
           <View style={styles.imageContainer}>
@@ -278,6 +281,12 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
           </View>
         )}
 
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          showsVerticalScrollIndicator={false}
+        >
+{/* 
         {route.params.annotatedImage && (
           <View style={styles.imageContainer}>
             <Image 
@@ -286,7 +295,7 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
               resizeMode="contain"
             />
           </View>
-        )}
+        )} */}
         
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -300,7 +309,7 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Type</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker
+                  {/* <Picker
                     selectedValue={sherd.type_prediction}
                     onValueChange={(value) => updateSherd(index, 'type_prediction', value)}
                     style={styles.picker}
@@ -313,14 +322,22 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
                         value={type} 
                       />
                     ))}
-                  </Picker>
+                  </Picker> */}
+                  <Dropdown 
+                    data={diagnosticTypes}
+                    value={sherd.type_prediction}
+                    onChange={(item) => updateSherd(index, 'type_prediction', item.value)}
+                    style={styles.picker}
+                    labelField="label"
+                    valueField="value"
+                    />
                 </View>
               </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Qualification</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker
+                  {/* <Picker
                     selectedValue={sherd.qualification_prediction}
                     onValueChange={(value) => updateSherd(index, 'qualification_prediction', value)}
                     style={styles.picker}
@@ -333,7 +350,15 @@ const MaterialEditPage: React.FC<Props> = ({ route, navigation }) => {
                         value={value} 
                       />
                     ))}
-                  </Picker>
+                  </Picker> */}
+                  <Dropdown 
+                    data={qualificationTypes}
+                    value={sherd.qualification_prediction}
+                    onChange={(item) => updateSherd(index, 'qualification_prediction', item.value)}
+                    style={styles.picker}
+                    labelField="label"
+                    valueField="value"
+                    />
                 </View>
               </View>
               
@@ -434,6 +459,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     padding: 20,
+    height: '25%',
   },
   imageTitle: {
     fontSize: 18,
@@ -441,12 +467,12 @@ const styles = StyleSheet.create({
   },
   annotatedImage: {
     width: '100%',
-    height: 200,
+    height: '100%',
     resizeMode: 'contain',
   },
   previewImage: {
     width: '100%',
-    height: 200,
+    // height: 200,
     resizeMode: 'contain',
   },
   buttonRow: {

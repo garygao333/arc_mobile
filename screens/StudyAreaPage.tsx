@@ -5,7 +5,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, addDoc, query, orderBy, doc, getDoc, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, doc, getDoc, where, updateDoc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import EditableText from '../components/EditableText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'StudyArea'>;
 
@@ -205,7 +206,57 @@ export default function StudyAreaPage({ route, navigation }: Props) {
 
       {/* Study Area Info */}
       <View style={styles.projectInfo}>
-        <Text style={styles.projectName}>Study Area {String(studyAreaId).padStart(5, '0')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.projectName}>Study Area </Text>
+          <EditableText
+            value={studyAreaId}
+            onSave={async (newId) => {
+              try {
+                // Update in Firestore
+                const studyAreaRef = doc(db, 'projects', projectId, 'studyAreas', studyAreaId);
+                
+                // First, update the document ID by creating a new document and deleting the old one
+                const studyAreaDoc = await getDoc(studyAreaRef);
+                if (studyAreaDoc.exists()) {
+                  const data = studyAreaDoc.data();
+                  // Create new document with updated ID
+                  await addDoc(collection(db, 'projects', projectId, 'studyAreas'), {
+                    ...data,
+                    id: newId
+                  });
+                  // Delete the old document
+                  await deleteDoc(studyAreaRef);
+                  
+                  // Update local state
+                  setStudyArea(prev => prev ? { ...prev, id: newId } : null);
+                  
+                  // Update navigation params
+                  navigation.setParams({ studyAreaId: newId });
+                  return true;
+                }
+                return false;
+              } catch (error) {
+                console.error('Error updating study area ID:', error);
+                Alert.alert('Error', 'Failed to update study area ID. Please try again.');
+                return false;
+              }
+            }}
+            textStyle={{
+              ...styles.projectName,
+              fontWeight: '500' as const
+            }}
+            containerStyle={{}}
+            inputStyle={{
+              ...styles.projectName,
+              fontWeight: '500' as const,
+              borderBottomWidth: 1,
+              borderBottomColor: '#ccc',
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              marginLeft: -8
+            }}
+          />
+        </View>
         <Text style={styles.projectCode}>{studyArea.label}</Text>
         {studyArea.description && (
           <Text style={styles.projectDescription}>{studyArea.description}</Text>
@@ -260,7 +311,93 @@ export default function StudyAreaPage({ route, navigation }: Props) {
                 }}
               >
                 <View style={{ width: 80, justifyContent: 'center', marginRight: 15 }}>
-                  <Text style={[styles.cell, { fontWeight: '500' }]}>{unit.id}</Text>
+                  <EditableText
+                    value={unit.id}
+                    onSave={async (newId) => {
+                      console.log('onSave called with newId:', newId);
+                      
+                      if (!newId.trim()) {
+                        console.log('Empty ID not allowed');
+                        Alert.alert('Error', 'ID cannot be empty');
+                        return false;
+                      }
+                      
+                      if (newId === unit.id) {
+                        console.log('No change detected');
+                        return true; // No change needed
+                      }
+                      
+                      // Check if new ID already exists
+                      if (stratUnits.some(u => u.id !== unit.id && u.id === newId)) {
+                        console.log('Duplicate ID detected:', newId);
+                        Alert.alert('Error', 'This ID is already in use');
+                        return false;
+                      }
+                      
+                      try {
+                        const unitRef = doc(db, 'projects', projectId, 'studyAreas', studyAreaId, 'stratUnits', unit.id);
+                        const newUnitRef = doc(db, 'projects', projectId, 'studyAreas', studyAreaId, 'stratUnits', newId);
+                        
+                        // Get current data
+                        console.log('Getting current strat unit data...');
+                        const unitDoc = await getDoc(unitRef);
+                        
+                        if (!unitDoc.exists()) {
+                          console.error('Strat unit document not found');
+                          Alert.alert('Error', 'Stratigraphic unit not found');
+                          return false;
+                        }
+                        
+                        const unitData = unitDoc.data();
+                        console.log('Current unit data:', unitData);
+                        
+                        // Create new document with updated ID
+                        console.log('Creating new document with ID:', newId);
+                        await setDoc(newUnitRef, {
+                          ...unitData,
+                          id: newId,
+                          updatedAt: serverTimestamp()
+                        });
+                        
+                        console.log('New document created, deleting old document...');
+                        // Delete the old document
+                        await deleteDoc(unitRef);
+                        
+                        // Update local state
+                        console.log('Updating local state...');
+                        setStratUnits(prev => {
+                          const updated = prev.map(u => 
+                            u.id === unit.id 
+                              ? { ...u, id: newId }
+                              : u
+                          );
+                          console.log('New strat units state:', updated);
+                          return updated;
+                        });
+                        
+                        console.log('Update successful');
+                        return true;
+                      } catch (error) {
+                        console.error('Error updating strat unit ID:', error);
+                        Alert.alert('Error', 'Failed to update stratigraphic unit ID. Please try again.');
+                        return false;
+                      }
+                    }}
+                    textStyle={{
+                      ...styles.cell,
+                      fontWeight: '500' as const
+                    }}
+                    containerStyle={{ flex: 1 }}
+                    inputStyle={{
+                      ...styles.cell,
+                      fontWeight: '500' as const,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#ccc',
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                      marginLeft: -8
+                    }}
+                  />
                 </View>
                 <View style={{ flex: 3, justifyContent: 'center', marginRight: 15 }}>
                   <Text style={styles.cell} numberOfLines={2} ellipsizeMode="tail">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, SafeAreaView } from 'react-native';
 import NumberInput from '../components/NumberInput';
 import { AntDesign } from '@expo/vector-icons';
@@ -6,6 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, addDoc, orderBy, query } from 'firebase/firestore';
+import ProjectPage from './ProjectPage';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -25,8 +26,11 @@ export default function HomePage({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [description, setDescription] = useState('');
   const [passwordPromptVisible, setPasswordPromptVisible] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [enteredPassword, setEnteredPassword] = useState('');
+  const [passWordSubmitted, setPassWordSubmitted] = useState(false);
+
+  const selectedProject = useMemo(() => projects.find(project => project.id === selectedProjectId), [projects, selectedProjectId]);
 
   useEffect(() => {
     fetchProjects();
@@ -63,7 +67,7 @@ export default function HomePage({ navigation }: Props) {
   };
 
   const handleProjectPress = (project: Project) => {
-    setSelectedProject(project);
+    setSelectedProjectId(project.id);
     setEnteredPassword('');
     setPasswordPromptVisible(true);
   };
@@ -74,11 +78,28 @@ export default function HomePage({ navigation }: Props) {
     // If project has no password or the entered password matches
     if (!selectedProject.password || selectedProject.password === enteredPassword) {
       setPasswordPromptVisible(false);
-      navigation.navigate('Project', { projectId: selectedProject.id });
+      // navigation.navigate('Project', { projectId: selectedProject.id });
+      setPassWordSubmitted(true);
+
     } else {
       alert('Incorrect password');
     }
   };
+
+  const handleClose = () => {
+    setPassWordSubmitted(false);
+    setSelectedProjectId(null);
+  };
+
+  const handleProjectUpdated = (updatedProject: Project) => {
+    setProjects((prevProjects) => prevProjects.map(project => project.id === selectedProjectId ? updatedProject : project));
+  };
+
+  if (passWordSubmitted && selectedProject) {
+    return (
+      <ProjectPage onClose={handleClose} onProjectUpdated={handleProjectUpdated} navigation={navigation} project={selectedProject } />
+    )
+  }
 
   return (
     <SafeAreaView style={styles.container}>

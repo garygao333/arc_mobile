@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -22,6 +22,7 @@ import { Picker } from '@react-native-picker/picker';
 import NumberInput from '../components/NumberInput';
 import Constants from 'expo-constants';
 import { Ionicons, AntDesign, MaterialIcons } from '@expo/vector-icons';
+import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { RootStackParamList } from '../App';
@@ -35,8 +36,12 @@ import {
   deleteDoc, 
   doc, 
   updateDoc, 
-  orderBy 
+  orderBy, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp 
 } from 'firebase/firestore';
+import EditableText from '../components/EditableText';
 
 // Format material type for display
 const formatMaterialTypeLabel = (type: string): string => {
@@ -60,12 +65,15 @@ const formatMaterialTypeLabel = (type: string): string => {
 // };
 
 const getServerUrl = () => {
-  return 'https://inference-backend-4035ffa4b620.herokuapp.com/'; // Replace with your actual Render URL
+  return 'https://inference-backend-4035ffa4b620.herokuapp.com'; // Replace with your actual Render URL
+  // return 'https://arc-backend-v20v.onrender.com';
 };
 
 const SERVER_URL = getServerUrl();
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MaterialContainer'>;
+
+const imageAnalysisAvailableForMaterialTypes = ['fine-ware', 'coarse-ware'];
 
 export default function MaterialContainerPage({ route, navigation }: Props) {
   // Set the navigation title
@@ -76,6 +84,9 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   }, [navigation]);
 
   const [groups, setGroups] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const isFocused = useIsFocused();
   
   // Modal states
   const [functionalTypeModal, setFunctionalTypeModal] = useState(false);
@@ -85,11 +96,13 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
   // Form states
   const [functionalType, setFunctionalType] = useState('fine-ware');
   const [materialGroupId, setMaterialGroupId] = useState('');
+  const [isGeneratingId, setIsGeneratingId] = useState(false);
   const [totalWeight, setTotalWeight] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [isImageAnalysisAvailable, setIsImageAnalysisAvailable] = useState(false);
+  // const [isImageAnalysisAvailable, setIsImageAnalysisAvailable] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const isImageAnalysisAvailable = useMemo(() => imageAnalysisAvailableForMaterialTypes.includes(functionalType), [functionalType]);
 
   useEffect(() => {
     (async () => {
@@ -97,33 +110,43 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
       setHasCameraPermission(status === 'granted');
     })();
   }, []);
-  
-  // Update image analysis availability when functional type changes
-  useEffect(() => {
-    setIsImageAnalysisAvailable(functionalType === 'fine-ware' || functionalType === 'coarse-ware');
-  }, [functionalType]);
 
   useEffect(() => {
-    fetchGroups();
-  }, []);
+    if (isFocused) {
+      console.log('Screen focused, refreshing material groups...');
+      fetchGroups();
+    }
+  }, [isFocused]);
 
   const fetchGroups = async () => {
     try {
+      setIsLoading(true);
+      console.log('Fetching material groups...');
       const groupsRef = collection(db, 'projects', route.params.projectId, 'studyAreas', route.params.studyAreaId, 'stratUnits', route.params.suId, 'materialGroups');
       const q = query(groupsRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
-      const groupsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        materialId: doc.data().materialId || '',
-        materialType: doc.data().materialType,
-        totalWeight: doc.data().totalWeight || 0,
-        sherdCount: doc.data().sherdCount || 0,
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-      }));
+      
+      console.log(`Found ${querySnapshot.size} material groups`);
+      const groupsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          materialId: data.materialId || '',
+          materialType: data.materialType || 'unknown',
+          totalWeight: data.totalWeight || 0,
+          sherdCount: data.sherdCount || 0,
+          createdAt: data.createdAt?.toDate() || new Date(),
+        };
+      });
+      
+      console.log('Fetched groups data:', groupsData);
       setGroups(groupsData);
     } catch (error) {
-      console.error('Error fetching groups:', error);
-      Alert.alert('Error', 'Failed to load material groups');
+      console.error('Error fetching material groups:', error);
+      Alert.alert('Error', 'Failed to load material groups. Please try again.');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -569,7 +592,88 @@ export default function MaterialContainerPage({ route, navigation }: Props) {
                   }}
                 >
                   <View style={{ width: 100, justifyContent: 'center', marginRight: 15 }}>
-                    <Text style={[styles.cell, { fontWeight: '500' }]}>{item.materialId}</Text>
+                    <EditableText
+                      value={item.materialId}
+                      onSave={async (newId) => {
+                        console.log('onSave called with newId:', newId);
+                        try {
+                          if (!newId.trim()) {
+                            console.log('Empty ID not allowed');
+                            Alert.alert('Error', 'ID cannot be empty');
+                            return false;
+                          }
+                          
+                          if (newId === item.materialId) {
+                            console.log('No change detected');
+                            return true; // No change needed
+                          }
+                          
+                          // Check if this ID is already in use
+                          if (groups.some(g => g.id !== item.id && g.materialId === newId)) {
+                            console.log('Duplicate ID detected:', newId);
+                            Alert.alert('Error', 'This ID is already in use');
+                            return false;
+                          }
+                          
+                          // Update in Firestore
+                          const groupRef = doc(
+                            db, 
+                            'projects', 
+                            route.params.projectId, 
+                            'studyAreas', 
+                            route.params.studyAreaId, 
+                            'stratUnits', 
+                            route.params.suId,
+                            'materialGroups',
+                            item.id
+                          );
+                          
+                          console.log('Updating document at path:', groupRef.path);
+                          
+                          try {
+                            // Update the document
+                            await updateDoc(groupRef, {
+                              materialId: newId,
+                              updatedAt: serverTimestamp()
+                            });
+                            
+                            console.log('Update successful');
+                            
+                            // Update local state
+                            setGroups(prevGroups => 
+                              prevGroups.map(g => 
+                                g.id === item.id 
+                                  ? { ...g, materialId: newId }
+                                  : g
+                              )
+                            );
+                            
+                            return true;
+                          } catch (error) {
+                            console.error('Error updating document:', error);
+                            throw error;
+                          }
+                        } catch (error) {
+                          console.error('Error updating material ID:', error);
+                          Alert.alert('Error', 'Failed to update material ID. Please try again.');
+                          return false;
+                        }
+                      }}
+                      textStyle={{
+                        ...styles.cell,
+                        fontWeight: '500' as const
+                      }}
+                      containerStyle={{ flex: 1 }}
+                      inputStyle={{
+                        ...styles.cell,
+                        fontWeight: '500' as const,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#ccc',
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
+                        marginLeft: -8
+                      }}
+                    />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'center', marginRight: 15 }}>
                     <Text style={styles.cell}>

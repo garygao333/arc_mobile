@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -15,7 +15,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
+import EditableText from '../components/EditableText';
 
 type StudyArea = {
   id: string;
@@ -29,41 +30,46 @@ type Project = {
   description: string;
 };
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Project'>;
+interface ProjectPageProps {
+  project: Project;
+  navigation: any;
+  onProjectUpdated: (updatedProject: Project) => void;
+  onClose: () => void;
+}
 
-export default function ProjectPage({ route, navigation }: Props) {
+export default function ProjectPage({ project, navigation, onProjectUpdated, onClose }: ProjectPageProps) {
   const [studyAreas, setStudyAreas] = useState<StudyArea[]>([]);
-  const [project, setProject] = useState<Project | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [labelInput, setLabelInput] = useState('');
   const [studyAreaId, setStudyAreaId] = useState('');
 
-  useEffect(() => {
-    fetchProject();
-    fetchStudyAreas();
-  }, [route.params.projectId]);
+  // const fetchProject = async () => {
+  //   try {
+  //     const docRef = doc(db, 'projects', route.params.projectId);
+  //     const docSnap = await getDoc(docRef);
+  //     if (docSnap.exists()) {
+  //       setProject({ id: docSnap.id, ...docSnap.data() } as Project);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching project:', error);
+  //   }
+  // };
 
-  const fetchProject = async () => {
+  const fetchStudyAreas = useCallback(async () => {
     try {
-      const docRef = doc(db, 'projects', route.params.projectId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setProject({ id: docSnap.id, ...docSnap.data() } as Project);
-      }
-    } catch (error) {
-      console.error('Error fetching project:', error);
-    }
-  };
-
-  const fetchStudyAreas = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'projects', route.params.projectId, 'studyAreas'));
+      const querySnapshot = await getDocs(collection(db, 'projects', project.id, 'studyAreas'));
       const areas = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
       setStudyAreas(areas);
     } catch (error) {
       console.error('Error fetching study areas:', error);
     }
-  };
+  }, [project.id]);
+
+
+  useEffect(() => {
+    // fetchProject();
+    fetchStudyAreas();
+  }, [fetchStudyAreas]);
 
   // Generate a new study area ID when the modal opens
   const openStudyAreaModal = () => {
@@ -93,7 +99,7 @@ export default function ProjectPage({ route, navigation }: Props) {
     }
 
     try {
-      await addDoc(collection(db, 'projects', route.params.projectId, 'studyAreas'), {
+      await addDoc(collection(db, 'projects', project.id, 'studyAreas'), {
         id: studyAreaId,
         label: labelInput.trim()
       });
@@ -124,8 +130,38 @@ export default function ProjectPage({ route, navigation }: Props) {
 
       {/* Project Info */}
       <View style={styles.projectInfo}>
+        <TouchableOpacity onPress={onClose}>
+          <Ionicons name="chevron-back" size={24} color="black" />
+        </TouchableOpacity>
         <Text style={styles.projectName}>{project.name}</Text>
-        <Text style={styles.projectCode}>{project.code}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <EditableText
+            value={project.code}
+            onSave={async (newCode) => {
+              try {
+                const projectRef = doc(db, 'projects', project.id);
+                await updateDoc(projectRef, { code: newCode });
+                // setProject({ ...project, code: newCode });
+                onProjectUpdated({ ...project, code: newCode });
+                return true;
+              } catch (error) {
+                console.error('Error updating project code:', error);
+                Alert.alert('Error', 'Failed to update project code. Please try again.');
+                return false;
+              }
+            }}
+            textStyle={styles.projectCode}
+            containerStyle={{ flex: 1 }}
+            inputStyle={{
+              ...styles.projectCode,
+              borderBottomWidth: 1,
+              borderBottomColor: '#ccc',
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              marginLeft: -8
+            }}
+          />
+        </View>
         <Text style={styles.projectDescription}>{project.description}</Text>
       </View>
 
@@ -163,7 +199,7 @@ export default function ProjectPage({ route, navigation }: Props) {
                 ]}
                 onPress={() => navigation.navigate('StudyArea', { 
                   studyAreaId: area.id, 
-                  projectId: route.params.projectId 
+                  projectId: project.id 
                 })}
               >
                 <View style={{ flex: 1 }}>

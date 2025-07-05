@@ -24,10 +24,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.garygao.arcsapp",
-      "buildNumber": "17",
+      "buildNumber": "19",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app uses the camera to document archaeological materials for research and cataloging.",
-        "NSPhotoLibraryUsageDescription": "The app needs access to your photo library to select images."
+        "NSCameraUsageDescription": "This app uses the camera to take photos of archaeological artifacts for automated recording and classification.",
+        "NSPhotoLibraryUsageDescription": "This app uses the photo library to select images of archaeological artifacts for automated recording and classification."
       }
     },
     "android": {
@@ -36,18 +36,14 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.RECORD_AUDIO"
-      ],
       "package": "com.garygao.arcsapp"
     },
     "plugins": [
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you share them with your friends.",
-          "cameraPermission": "The app needs access to your camera to take photos."
+          "photosPermission": "This app uses the photo library to select images of archaeological artifacts for automated recording and classification.",
+          "cameraPermission": "This app uses the camera to take photos of archaeological artifacts for automated recording and classification."
         }
       ]
     ],

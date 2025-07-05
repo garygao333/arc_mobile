@@ -60,7 +60,7 @@ const formatMaterialTypeLabel = (type: string): string => {
 // };
 
 const getServerUrl = () => {
-  return 'https://arc-backend-v20v.onrender.com'; // Replace with your actual Render URL
+  return 'https://inference-backend-4035ffa4b620.herokuapp.com/'; // Replace with your actual Render URL
 };
 
 const SERVER_URL = getServerUrl();
